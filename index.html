@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="vi" class="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>AI Codebase Intelligence</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+<script>
+  tailwind.config = {
+    darkMode: 'class',
+    theme: {
+      extend: {
+        fontFamily: {
+          sans: ['Inter','system-ui','-apple-system','Segoe UI','Roboto','sans-serif'],
+          mono: ['"JetBrains Mono"','ui-monospace','SFMono-Regular','Menlo','monospace'],
+        },
+        colors: {
+          ink: {
+            50:  '#F4F6FA',
+            100: '#E4E8F0',
+            200: '#C9CFDB',
+            300: '#8C95A8',
+            400: '#6E7689',
+            500: '#5A6273',
+            600: '#3A4150',
+            700: '#262C37',
+            800: '#161A22',
+            900: '#0E1116',
+            950: '#0B0D10',
+          },
+          teal:   { 300:'#5EEAD4',400:'#2DD4BF',500:'#14B8A6' },
+          red:    { 300:'#FCA5A5',400:'#F87171',500:'#EF4444' },
+          amber:  { 200:'#FDE68A',300:'#FCD34D',400:'#FBBF24',500:'#F59E0B' },
+          yellow: { 200:'#FEF08A',400:'#FACC15' },
+          emerald:{ 300:'#6EE7B7',500:'#10B981' },
+          blue:   { 300:'#93C5FD',500:'#3B82F6' },
+          violet: { 300:'#C4B5FD',500:'#8B5CF6' },
+        },
+        borderRadius: { 'xl2': '14px' },
+        boxShadow: {
+          soft: '0 1px 2px rgba(0,0,0,.25), 0 4px 12px -4px rgba(0,0,0,.35)',
+          glow: '0 0 0 1px rgba(20,184,166,.25), 0 8px 28px -10px rgba(20,184,166,.55)',
+        },
+      },
+    },
+  };
+</script>
+
+<style>
+  html, body, #root { height: 100%; }
+  body { background: #0B0D10; color: #C9CFDB; font-family: Inter, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  *::selection { background: rgba(20,184,166,.35); }
+
+  /* Background helpers */
+  .bg-grid {
+    background-image:
+      linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+  .bg-radial-spot {
+    background-image:
+      radial-gradient(900px 480px at 50% -10%, rgba(20,184,166,.10), transparent 70%),
+      radial-gradient(800px 420px at 90% 20%, rgba(139,92,246,.08), transparent 70%);
+  }
+  .code-bg { background: #0E1116; }
+  .backdrop { background: rgba(7,9,12,.55); backdrop-filter: blur(2px); }
+
+  /* Skeleton */
+  .skel {
+    background: linear-gradient(90deg, #161A22 0%, #1d222c 50%, #161A22 100%);
+    background-size: 200% 100%;
+    animation: skel 1.4s linear infinite;
+    border-radius: 8px;
+  }
+  @keyframes skel { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+  /* Fade in */
+  .fade-in { animation: fade .35s ease-out both; }
+  @keyframes fade { from { opacity: 0; transform: translateY(4px);} to { opacity: 1; transform: none; } }
+
+  /* Severity dot */
+  .sev-dot { display:inline-block; width:7px; height:7px; border-radius:9999px; }
+  .pulse-dot { box-shadow: 0 0 0 0 rgba(20,184,166,.6); animation: pulse 1.6s infinite; }
+  @keyframes pulse {
+    0%   { box-shadow: 0 0 0 0   rgba(20,184,166,.55); }
+    70%  { box-shadow: 0 0 0 10px rgba(20,184,166,0); }
+    100% { box-shadow: 0 0 0 0   rgba(20,184,166,0); }
+  }
+
+  /* Switch */
+  .switch {
+    width: 36px; height: 20px; border-radius: 9999px; background: #262C37;
+    border: 1px solid #3A4150; position: relative; transition: background .15s;
+  }
+  .switch::after {
+    content: ''; position: absolute; top: 1px; left: 1px;
+    width: 16px; height: 16px; border-radius: 9999px; background: #C9CFDB;
+    transition: transform .18s, background .18s;
+  }
+  .switch[data-on="true"] { background: rgba(20,184,166,.35); border-color: rgba(20,184,166,.55); }
+  .switch[data-on="true"]::after { transform: translateX(16px); background: #2DD4BF; }
+
+  /* Tabs */
+  .tab-active { color: #F4F6FA; border-bottom: 2px solid #14B8A6; }
+
+  /* Architecture diagram */
+  .arch-node       { fill: #161A22; stroke: #262C37; stroke-width: 1; }
+  .arch-node:hover { stroke: #14B8A6; }
+  .arch-node-title { fill: #F4F6FA; font: 600 13px Inter, sans-serif; }
+  .arch-node-sub   { fill: #8C95A8; font: 500 11px Inter, sans-serif; }
+  .arch-edge       { stroke: #3A4150; stroke-width: 1.5; fill: none; }
+
+  /* Tree row */
+  .tree-row { animation: fade .25s ease-out both; }
+
+  /* Tokens (very crude) */
+  .tok-c { color: #5A6273; font-style: italic; }
+  .tok-s { color: #2DD4BF; }
+  .tok-k { color: #C4B5FD; }
+  .tok-n { color: #FCD34D; }
+
+  /* Streaming cursor */
+  .stream-cursor::after { content: '▍'; color:#14B8A6; margin-left: 2px; animation: blink 1s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* Chip hover */
+  .chip:hover { color: #F4F6FA; }
+
+  /* Link arrow nudge */
+  .link-arrow:hover .arr { transform: translateX(2px); transition: transform .15s; }
+
+  /* Diff */
+  .diff-del { background: rgba(239,68,68,.07); color: #FCA5A5; }
+  .diff-add { background: rgba(16,185,129,.08); color: #6EE7B7; }
+
+  /* README prose */
+  .prose-readme h1 { font-size: 1.5rem; }
+  .prose-readme h2 { color:#F4F6FA; }
+  .prose-readme code { color:#5EEAD4; }
+
+  /* Resizer */
+  .resizer { width:4px; cursor: col-resize; background: transparent; flex-shrink: 0; }
+  .resizer:hover, .resizer.dragging { background: #14B8A655; }
+
+  /* Light theme overrides */
+  html:not(.dark) body { background: #F6F7F9; color: #0E1116; }
+  html:not(.dark) .code-bg { background: #FFFFFF; }
+  html:not(.dark) .arch-node { fill: #FFFFFF; stroke: #D6DAE3; }
+  html:not(.dark) .arch-node-title { fill: #0E1116; }
+  html:not(.dark) .arch-node-sub   { fill: #5A6273; }
+  html:not(.dark) .arch-edge { stroke: #B6BCCB; }
+
+  /* Selects/inputs styling */
+  select, input[type="text"], input[type="email"], input[type="password"], textarea {
+    background: #0E1116; color: #F4F6FA; border: 1px solid #262C37; border-radius: 8px;
+    padding: 4px 8px; outline: none;
+  }
+  select:focus, input:focus, textarea:focus { border-color: rgba(20,184,166,.6); }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: #262C37; border-radius: 8px; }
+  ::-webkit-scrollbar-thumb:hover { background: #3A4150; }
+  ::-webkit-scrollbar-track { background: transparent; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<!-- React + ReactDOM (UMD) -->
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<!-- Babel standalone for in-browser JSX -->
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<!-- Backend base URL (FastAPI). Empty → mock data only. -->
+<script>
+  // Auto-detect: if served from same origin as backend (port 8000) use relative,
+  // otherwise default to http://localhost:8000. Override with ?api=...
+  (function () {
+    const url = new URL(location.href);
+    const override = url.searchParams.get('api');
+    if (override !== null) { window.API_BASE = override; return; }
+    if (location.protocol === 'file:' || location.port === '5500' || location.port === '5173') {
+      window.API_BASE = 'http://localhost:8000';
+    } else {
+      window.API_BASE = ''; // same origin
+    }
+  })();
+</script>
+
+<!-- App source (loaded as Babel scripts). Order matters. -->
+<script type="text/babel" data-presets="env,react" src="src/data.jsx"></script>
+<script type="text/babel" data-presets="env,react" src="src/icons.jsx"></script>
+<script type="text/babel" data-presets="env,react" src="src/ui.jsx"></script>
+<script type="text/babel" data-presets="env,react" src="src/api.jsx"></script>
+<script type="text/babel" data-presets="env,react" src="src/landing.jsx"></script>
+<script type="text/babel" data-presets="env,react" src="src/scan-tabs.jsx"></script>
+<script type="text/babel" data-presets="env,react" src="src/scan-assistant.jsx"></script>
+<script type="text/babel" data-presets="env,react" src="src/scan.jsx"></script>
+<script type="text/babel" data-presets="env,react" src="src/library.jsx"></script>
+<script type="text/babel" data-presets="env,react" src="src/compare.jsx"></script>
+<script type="text/babel" data-presets="env,react" src="src/settings.jsx"></script>
+<script type="text/babel" data-presets="env,react" src="src/command.jsx"></script>
+<script type="text/babel" data-presets="env,react" src="src/app.jsx"></script>
+</body>
+</html>
