@@ -51,12 +51,21 @@ export function AuthProvider({ children }) {
       });
 
       try {
-        // Fetch workspace info from Supabase DB explicitly if needed, or fallback.
-        // For now, mock a default workspace based on auth user so UI won't crash 
-        // while you setup DB policies.
-        const defaultWk = { id: session.user.id, name: 'Personal Workspace', plan: 'free' };
-        setWorkspace(defaultWk);
-        setWorkspaces([defaultWk]);
+        // Fetch actual workspace data from Supabase Database
+        const { data: wsData, error: wsError } = await supabase
+          .from('workspaces')
+          .select('*')
+          .eq('owner_id', session.user.id);
+        
+        if (!wsError && wsData && wsData.length > 0) {
+          setWorkspace(wsData[0]);
+          setWorkspaces(wsData);
+        } else {
+          // Fallback if not created yet by trigger
+          const defaultWk = { id: session.user.id, name: 'Personal Workspace', plan: 'free' };
+          setWorkspace(defaultWk);
+          setWorkspaces([defaultWk]);
+        }
       } catch (err) {
         console.error("Failed to load workspace data from Supabase", err);
       } finally {
