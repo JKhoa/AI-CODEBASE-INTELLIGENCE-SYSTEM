@@ -1,137 +1,64 @@
-# AI Codebase Intelligence — SaaS
+﻿# AI Codebase Intelligence — SaaS
 
-Phân tích repository GitHub bằng AI: cây thư mục có chú thích, sơ đồ kiến trúc,
-phát hiện bảo mật 2 lớp (heuristic + LLM), Q&A có RAG, so sánh giữa các repo,
-sinh tài liệu Markdown — **kèm full multi-tenant SaaS**: auth, workspaces,
-team, API keys, plan-based quota.
+Hệ thống phân tích Repository GitHub tự động bằng AI. Cung cấp tính năng bóc tách cây thư mục (AST), sinh sơ đồ kiến trúc, phát hiện lỗi bảo mật và sinh tài liệu Markdown. 
+Tích hợp hệ thống SaaS đầy đủ: Authentication, Workspaces Database, Team, Quota limits.
 
-## Cấu trúc
+## 🚀 Kiến trúc hệ thống mới
+- **Framework:** 100% Next.js 14 (App Router) cho cả Frontend (React/Tailwind) và Backend (Serverless API).
+- **Cơ sở dữ liệu & Xác thực (BaaS):** Supabase (PostgreSQL & Supabase Auth).
+- **Containerize:** Dockerized (web/Dockerfile build custom standalone size-optimized).
+- **AI Provider:** Google Gemini API.
+- **Deploy:** Render.com thông qua CI/CD của GitHub.
 
-```
-web/                Next.js 14 frontend (App Router, Tailwind)
-  app/              routes (/, /login, /signup, /dashboard, /library,
-                            /scan/[id], /compare/[a]/[b], /settings/*)
-  src/              components / context (App + Auth) / lib
+## 📂 Cấu trúc thư mục
+`	ext
+web/
+  app/              Next.js Pages & Backend Serverless API Routes (/api/*)
+  src/              React Components, Context (AuthContext), Utilities & Logic (analyze.js)
+  Dockerfile        Cấu hình Docker để build Image cho Production
+  package.json      Quản lý thư viện dự án
+`
 
-server.py           FastAPI backend (auth, scan, chat, workspaces, billing)
-db.py               SQLAlchemy models + plan limits + SQLite engine
-auth.py             JWT, password (PBKDF2), API-key auth, FastAPI deps
-analyze.py          AST + arch graph + dep audit + doc generator
-llm.py              LLM providers (Anthropic / OpenAI / Ollama) + retrieval
-requirements.txt
-.cache/             saas.db (SQLite) + session blobs
-```
+## 🛠 Hướng dẫn khởi chạy cục bộ (Local)
 
-## Chạy
+**1. Yêu cầu môi trường:**
+- Node.js >= 20.x
+- Tài khoản và Dự án trên Supabase
+- API Key từ Google AI Studio (Gemini)
 
-### Backend
-```bash
-pip install -r requirements.txt
-python server.py          # http://localhost:8000
-```
-DB tự tạo tại `.cache/saas.db` ở lần chạy đầu.
-
-### Frontend
-```bash
+**2. Cài đặt:**
+`ash
 cd web
 npm install
-npm run dev               # http://localhost:3000  (/api/* proxy → :8000)
-```
+`
 
-Production:
-```bash
-cd web && npm run build && npm run start
-```
+**3. Cấu hình biến môi trường:**
+Tạo file .env.local ở thư mục web/ và bổ sung:
+`env
+NEXT_PUBLIC_SUPABASE_URL=https://<your_id>.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<your_anon_key>
+GEMINI_API_KEY=<your_gemini_api_key>
+GITHUB_TOKEN=<your_github_token_de_chong_rate_limit> # (Tùy chọn)
+`
 
-### Biến môi trường (tuỳ chọn)
-- `APP_SECRET`     — secret ký JWT (đổi trong production)
-- `LLM_PROVIDER`   — `anthropic` | `openai` | `ollama`
-- `LLM_API_KEY`    — server-side default LLM key (per-user vẫn override được)
-- `LLM_MODEL`      — model id mặc định
+**4. Chạy môi trường phát triển (Dev):**
+`ash
+npm run dev
+# Truy cập cổng http://localhost:3000
+`
 
-## SaaS flow
+## 🐳 Docker Deployment
+Ứng dụng có thể được đóng gói và chạy thông qua nền tảng Container:
+`ash
+cd web
+docker build -t ai-codebase-app .
+docker run -p 3000:3000 --env-file .env.local ai-codebase-app
+`
 
-1. Mở `/signup` → tạo tài khoản (email + password). Tự sinh **Personal workspace**.
-2. `/dashboard` hiển thị usage, plan, các shortcut.
-3. `/` (Landing) paste URL repo → tạo scan (gắn vào workspace mặc định).
-4. `/library` hiển thị mọi scan trong các workspace mà user là thành viên.
-5. `/settings/team` mời thành viên (sinh invite token), `/accept-invite?token=…`
-   để tham gia.
-6. `/settings/api-keys` tạo programmatic API key (xem **API** ở dưới).
-7. `/settings/billing` chuyển plan **Free / Pro / Team** (mock — không Stripe).
-8. `/settings/account` xem profile, logout.
-
-## Plans & quota
-
-| Plan  | Scan/tháng | Chat/tháng | Members | API keys |
-|-------|-----------:|-----------:|--------:|---------:|
-| Free  |         10 |        100 |       1 |        1 |
-| Pro   |        200 |      4 000 |       5 |        5 |
-| Team  |     2 000  |     40 000 |      25 |       25 |
-
-Quota enforce server-side; vượt cap → HTTP 402.
-
-## API endpoints
-
-### Auth
-| Method | Path                       | Body / mô tả                          |
-|-------:|----------------------------|---------------------------------------|
-| POST   | `/api/auth/signup`         | `{email, password, name?}` → token    |
-| POST   | `/api/auth/login`          | `{email, password}` → token           |
-| GET    | `/api/auth/me`             | user + workspaces                     |
-| POST   | `/api/auth/plan`           | `{plan}` đổi plan (free/pro/team)     |
-
-### Dashboard / workspace / team
-| Method | Path                                              |
-|-------:|---------------------------------------------------|
-| GET    | `/api/dashboard`                                  |
-| GET    | `/api/plans`                                      |
-| GET    | `/api/workspaces`                                 |
-| GET    | `/api/workspaces/{wid}/members`                   |
-| POST   | `/api/workspaces/{wid}/invite`  `{email, role}`   |
-| DELETE | `/api/workspaces/{wid}/members/{member_id}`       |
-| POST   | `/api/invites/accept`            `{token}`        |
-
-### API keys
-| Method | Path                       | Mô tả                       |
-|-------:|----------------------------|-----------------------------|
-| GET    | `/api/api-keys`            | List                        |
-| POST   | `/api/api-keys`            | `{name}` → trả raw key 1 lần |
-| DELETE | `/api/api-keys/{id}`       | Revoke                      |
-
-### Scans (cần auth)
-| Method | Path                                  |
-|-------:|---------------------------------------|
-| POST   | `/api/scan`           `{url, token?, workspaceId?}` |
-| GET    | `/api/scan/{id}`                      |
-| GET    | `/api/scan/{id}/tree`                 |
-| GET    | `/api/scan/{id}/file?path=…`          |
-| GET    | `/api/scan/{id}/readme`               |
-| GET    | `/api/scan/{id}/doc.md?lang=vi`       |
-| GET    | `/api/scan/{id}/dependencies`         |
-| POST   | `/api/scan/{id}/share`  `{visibility}`|
-| DELETE | `/api/scan/{id}`                      |
-| GET    | `/api/library`                        |
-| POST   | `/api/chat`                           |
-| GET    | `/api/compare?a=&b=`                  |
-
-### Auth header
-Bearer JWT **hoặc** API key (gửi qua `Authorization: Bearer <token-or-key>`
-hoặc `X-Api-Key: <key>`). API keys cho phép tự động hoá CI/CD.
-
-### Public share
-Scan có `visibility="public"` (xem `POST /api/scan/{id}/share`) lấy được
-qua link có `?share=<shareToken>`, không cần đăng nhập.
-
-## Cấu hình LLM
-
-Mở `/settings`, chọn provider (Anthropic / OpenAI / Ollama), dán key, bấm
-**Ping LLM** để test, **Save**. Key lưu trong localStorage trình duyệt và gửi
-kèm mỗi lần chat. Ollama yêu cầu daemon chạy local trên `:11434`.
-
-## Notes
-
-- DB file `.cache/saas.db` tự khởi tạo. Xoá file = reset toàn bộ user/scan.
-- Cookies không dùng — JWT lưu trong localStorage (key `auth.token.v1`).
-- Bcrypt thay bằng PBKDF2-HMAC-SHA256 (200k iterations) để tránh dependency.
-- Không có Stripe — đổi plan trên `/settings/billing` chỉ cập nhật DB.
+## 📝 Danh sách yêu cầu học thuật đã đáp ứng
+1. ✅ **Next.js (App Router):** Triển khai toàn bộ Full-stack Javascript. Lược bỏ hoàn toàn Backend Python cũ.
+2. ✅ **Supabase-only backend:** Dùng Supabase Auth thay JWT thủ công và Supabase PostgreSQL thay cho SQLite.
+3. ✅ **Docker:** Sử dụng Dockerfile 3 stages để optimize image size của Next.js (Standalone).
+4. ✅ **Nền tảng Live Deployment:** Ứng dụng đã chạy môi trường trên Internet, build Container Image tự động qua Render.com.
+5. ✅ **Lịch sử GitHub:** Quản lý version control, history code cho quy trình migrate và debug CI/CD chặt chẽ.
+6. ✅ **Tích hợp API/AI:** Sử dụng GitHub API kéo mã nguồn + Google Gemini API phân tích và truy vấn.
