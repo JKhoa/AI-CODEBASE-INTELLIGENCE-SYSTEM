@@ -27,13 +27,15 @@ export default function Scan({ sessionId }) {
     let stopped = false; let timer = null;
     const tick = async () => {
       try {
-        if (!await API.probe()) return;
         const raw = await API.getScan(sid);
         if (stopped) return;
         setRemote(adaptSessionForUI(raw));
         if (raw.status === 'ready' || raw.status === 'failed') return;
         timer = setTimeout(tick, 1500);
-      } catch (e) { /* ignore */ }
+      } catch (e) {
+        // Keep polling on transient errors (401 race with auth hydration, 5xx, etc.)
+        if (!stopped) timer = setTimeout(tick, 2000);
+      }
     };
     tick();
     return () => { stopped = true; if (timer) clearTimeout(timer); };

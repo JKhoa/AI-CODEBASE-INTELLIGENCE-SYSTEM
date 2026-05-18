@@ -3,12 +3,14 @@
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { AppProvider } from '@/src/context/AppContext';
+import { AuthProvider } from '@/src/context/AuthContext';
 import TopBar from '@/src/components/TopBar';
 import CommandPalette from '@/src/components/CommandPalette';
 
 function Inner({ children }) {
   const pathname = usePathname() || '/';
   const isFullBleed = pathname.startsWith('/scan/');
+  const isAuthPage = pathname.startsWith('/login') || pathname.startsWith('/signup');
   const [cmdOpen, setCmdOpen] = useState(false);
 
   useEffect(() => {
@@ -20,6 +22,10 @@ function Inner({ children }) {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
+
+  if (isAuthPage) {
+    return <main className="flex-1 min-h-0 overflow-y-auto">{children}</main>;
+  }
 
   return (
     <div className="h-full flex flex-col">
@@ -33,5 +39,11 @@ function Inner({ children }) {
 }
 
 export default function Shell({ children }) {
-  return <AppProvider><Inner>{children}</Inner></AppProvider>;
+  return (
+    <AppProvider>
+      <AuthProvider>
+        <Inner>{children}</Inner>
+      </AuthProvider>
+    </AppProvider>
+  );
 }

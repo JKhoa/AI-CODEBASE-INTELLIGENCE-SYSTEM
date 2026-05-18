@@ -1,21 +1,33 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useApp } from '@/src/context/AppContext';
+import { useAuth } from '@/src/context/AuthContext';
 import Icon from '@/src/components/Icon';
 import { Button, Card, Badge, Spinner, LangIcon } from '@/src/components/ui';
 import API from '@/src/lib/api';
 import cx from '@/src/lib/cx';
 
 export default function Landing() {
+  return <Suspense fallback={null}><LandingInner/></Suspense>;
+}
+
+function LandingInner() {
   const ctx = useApp();
+  const auth = useAuth();
   const t = ctx.t;
   const [url, setUrl] = useState('');
   const [shake, setShake] = useState(false);
   const [busy, setBusy] = useState(false);
   const inputRef = useRef(null);
 
-  useEffect(() => { inputRef.current?.focus(); }, []);
+  const sp = useSearchParams();
+  useEffect(() => {
+    const pre = sp?.get('url');
+    if (pre) setUrl(pre);
+    inputRef.current?.focus();
+  }, []);
 
   const handleAnalyze = async (e) => {
     e?.preventDefault?.();
@@ -23,17 +35,18 @@ export default function Landing() {
     const ok = /^https?:\/\/(www\.)?github\.com\/[^/]+\/[^/]+/i.test(trimmed)
             || /^[\w.-]+\/[\w.-]+$/.test(trimmed);
     if (!ok) { setShake(true); setTimeout(() => setShake(false), 500); return; }
-    setBusy(true);
-    if (await API.probe()) {
-      try {
-        const s = await API.startScan(trimmed);
-        ctx.navigate('/scan/' + s.id);
-        return;
-      } catch (err) { console.error('startScan failed', err); }
-      finally { setBusy(false); }
+    if (!auth.user) {
+      ctx.navigate('/signup?next=' + encodeURIComponent('/?url=' + encodeURIComponent(trimmed)));
+      return;
     }
-    setBusy(false);
-    ctx.navigate('/scan/sess-acme-orders');
+    setBusy(true);
+    try {
+      const s = await API.startScan(trimmed, null, auth.workspace?.id);
+      ctx.navigate('/scan/' + s.id);
+    } catch (err) {
+      console.error('startScan failed', err);
+      alert(err?.payload?.detail || err.message || 'Scan failed');
+    } finally { setBusy(false); }
   };
 
   const demos = [

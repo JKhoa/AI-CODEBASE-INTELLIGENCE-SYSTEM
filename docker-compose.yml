@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  web:
+    build: 
+      context: .
+      dockerfile: web/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+    restart: always
+
+  # NOTE: To fully replace the python backend, you will eventually need to remove 
+  # this backend service or adapt it as an AI microservice and migrate Auth/DB to Supabase.
+  # If you are migrating gradually, you might keep the python API running alongside Next.js.
+  backend:
+    build:
+      context: .
+      dockerfile: backend.Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+    restart: always

@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  output: "standalone",
   // Proxy /api/* to the FastAPI backend during development so the frontend
   // can keep using same-origin URLs.
   async rewrites() {
