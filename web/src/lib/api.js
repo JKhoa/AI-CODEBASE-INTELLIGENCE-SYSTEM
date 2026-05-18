@@ -3,6 +3,8 @@
 
 const API_BASE = '';   // requests go through the Next.js rewrite → :8000.
 
+import { supabase } from './supabase';
+
 const TOKEN_KEY = 'auth.token.v1';
 let _authToken = null;
 if (typeof window !== 'undefined') {
@@ -54,11 +56,26 @@ export const API = {
   login:   (body)              => apiFetch('/api/auth/login',  { method: 'POST', body: JSON.stringify(body) }),
   me:      ()                  => apiFetch('/api/auth/me'),
   updatePlan: (plan)           => apiFetch('/api/auth/plan',   { method: 'POST', body: JSON.stringify({ plan }) }),
-  dashboard: ()                => apiFetch('/api/dashboard'),
+  dashboard: async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Not authenticated");
+    const { data: scans } = await supabase.from('scans').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(5);
+    const { data: workspaces } = await supabase.from('workspaces').select('*').eq('owner_id', user.id).limit(1);
+    
+    return {
+      recent_scans: scans || [],
+      stats: { total_scans: scans?.length || 0, this_month: scans?.length || 0 },
+      active_plan: workspaces?.[0]?.plan || 'free'
+    };
+  },
   plans:   ()                  => apiFetch('/api/plans'),
 
   // ---- Workspaces ----
-  workspaces:    ()             => apiFetch('/api/workspaces'),
+  workspaces: async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data } = await supabase.from('workspaces').select('*').eq('owner_id', user?.id || '');
+    return data || [];
+  },
   workspaceMembers:(wid)        => apiFetch('/api/workspaces/' + encodeURIComponent(wid) + '/members'),
   invite:        (wid, body)    => apiFetch('/api/workspaces/' + encodeURIComponent(wid) + '/invite', { method: 'POST', body: JSON.stringify(body) }),
   acceptInvite:  (token)        => apiFetch('/api/invites/accept', { method: 'POST', body: JSON.stringify({ token }) }),
@@ -73,13 +90,36 @@ export const API = {
   async startScan(url, token, workspaceId) {
     return apiFetch('/api/scan', { method: 'POST', body: JSON.stringify({ url, token: token || null, workspaceId: workspaceId || null }) });
   },
-  getScan:    (sid, share)      => apiFetch('/api/scan/' + encodeURIComponent(sid) + (share ? '?share=' + encodeURIComponent(share) : '')),
+  getScan: async (sid, share) => {
+    let query = supabase.from('scans').select('*');
+    if (share) query = query.eq('share_token', share);
+    else query = query.eq('id', sid);
+    const { data } = await query.single();
+    if (!data) throw new Error("Scan not found");
+    return data.data; // Since 'data' column holds the JSON output
+  },
   getTree:    (sid)             => apiFetch('/api/scan/' + encodeURIComponent(sid) + '/tree'),
   getFile:    (sid, p)          => apiFetch('/api/scan/' + encodeURIComponent(sid) + '/file?path=' + encodeURIComponent(p)),
   getReadme:  (sid)             => apiFetch('/api/scan/' + encodeURIComponent(sid) + '/readme'),
   shareScan:  (sid, visibility) => apiFetch('/api/scan/' + encodeURIComponent(sid) + '/share', { method: 'POST', body: JSON.stringify({ visibility }) }),
-  listLibrary:()                => apiFetch('/api/library'),
-  deleteScan: (sid)             => apiFetch('/api/scan/' + encodeURIComponent(sid), { method: 'DELETE' }),
+  
+  listLibrary: async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+    const { data, error } = await supabase.from('scans').select('id, repo_owner, repo_name, status, created_at').eq('user_id', user.id).order('created_at', { ascending: false });
+    if (error) throw error;
+    // Map to old schema expected by UI
+    return data.map(d => ({
+      id: d.id,
+      repo: { owner: d.repo_owner, name: d.repo_name },
+      status: d.status,
+      timestamp: new Date(d.created_at).getTime() / 1000
+    }));
+  },
+
+  deleteScan: async (sid) => {
+    return await supabase.from('scans').delete().eq('id', sid);
+  },
   chat:       (payload)         => apiFetch('/api/chat',    { method: 'POST', body: JSON.stringify(payload) }),
   compare:    (a, b)            => apiFetch('/api/compare?a=' + encodeURIComponent(a) + '&b=' + encodeURIComponent(b)),
   docMd:      (sid, lang)       => apiFetch('/api/scan/' + encodeURIComponent(sid) + '/doc.md?lang=' + (lang || 'vi')),
