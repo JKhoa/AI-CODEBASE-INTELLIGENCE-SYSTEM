@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: ai-codebase-intelligence
+    env: docker
+    dockerfilePath: ./web/Dockerfile
+    # Chỉ định build context là thư mục gốc dự án
+    dockerContext: .
+    plan: free
+    envVars:
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
