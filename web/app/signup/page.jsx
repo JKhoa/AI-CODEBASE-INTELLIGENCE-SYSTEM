@@ -27,7 +27,11 @@ function SignupInner() {
     e.preventDefault();
     setErr(''); setBusy(true);
     try {
-      await signup({ email, password, name });
+      const data = await signup({ email, password, name });
+      if (!data?.session && data?.user) {
+        setErr('Vui lòng kiểm tra hộp thư email của bạn để xác nhận tài khoản!');
+        return;
+      }
       router.replace(next);
     } catch (e) {
       setErr(e?.payload?.detail || e.message || 'Đăng ký thất bại');
