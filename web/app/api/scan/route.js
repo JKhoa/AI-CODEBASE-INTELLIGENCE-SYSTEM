@@ -37,7 +37,8 @@ export async function POST(req) {
     const scanId = Math.random().toString(36).substring(2, 10);
 
     // 3. Insert Initial Queued Record into Supabase
-    const { data: scanRecord, error: insertError } = await supabase
+    const userSupabase = createClient(supabaseUrl, supabaseKey, { global: { headers: { Authorization: 'Bearer ' + jwt } } });
+    const { data: scanRecord, error: insertError } = await userSupabase
       .from('scans')
       .insert({
         id: scanId,
@@ -90,7 +91,7 @@ export async function POST(req) {
         };
 
         // Update Scan Record
-        await supabase.from('scans').update({
+        await userSupabase.from('scans').update({
           status: 'done',
           data: analysisData,
           finished_at: new Date().toISOString()
@@ -98,7 +99,7 @@ export async function POST(req) {
 
       } catch (analysisErr) {
         console.error("Analysis Worker Error:", analysisErr);
-        await supabase.from('scans').update({ status: 'failed' }).eq('id', scanId);
+        await userSupabase.from('scans').update({ status: 'failed' }).eq('id', scanId);
       }
     })();
 
