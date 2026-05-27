@@ -142,7 +142,7 @@ export async function POST(req) {
             tree, arch, langs,
             stats: { loc: totalLoc, files: blobs.length, modules: aiOutput.modules?.length || 0, contributors: 1, lastCommit: repoData.updated_at },
             readme: `# ${repo_name}\n\n${repoData.description || 'No description available.'}\n\n*Phân tích tự động bằng AI.*`,
-            modules: aiOutput.modules || [], security: aiOutput.security || [], tours: aiOutput.tours || [], domains: aiOutput.domains || []
+            modules: aiOutput.modules || [], security: aiOutput.security || [], tours: aiOutput.tours || [], domains: aiOutput.domains || [], aiAssessment: aiOutput.aiAssessment || null
           };
 
           // SINGLE INSERT INTO SUPABASE AT THE END (Bypass UPDATE issue)

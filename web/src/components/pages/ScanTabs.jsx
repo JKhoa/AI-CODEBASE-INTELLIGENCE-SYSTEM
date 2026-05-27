@@ -86,12 +86,13 @@ export function OverviewTab({ session, ready, stage }) {
       <div className="font-mono text-ink-50 text-2xl tracking-tight">{value}</div>
     </Card>
   );
-  const [activeQACat, setActiveQACat] = useState(DATA.AI_ASSESSMENT?.categories[0]?.id || 'purpose');
+  const aiAssessment = session.aiAssessment || DATA.AI_ASSESSMENT;
+  const [activeQACat, setActiveQACat] = useState(aiAssessment?.categories?.[0]?.id || 'purpose');
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
       {/* AI Intelligence Report */}
-      {DATA.AI_ASSESSMENT && (
+      {aiAssessment && (
         <Card className="mb-5 overflow-hidden border-teal-500/30">
           <div className="bg-gradient-to-r from-teal-900/40 to-ink-900/40 p-5 border-b border-ink-800">
             <div className="flex items-start justify-between">
@@ -108,12 +109,14 @@ export function OverviewTab({ session, ready, stage }) {
           </div>
           <div className="p-5 space-y-6">
             {/* Contradictions */}
-            {DATA.AI_ASSESSMENT.contradictions.map((c, i) => (
+            {aiAssessment.contradictions && aiAssessment.contradictions.map((c, i) => (
               <ContradictionAlert key={i} item={c} t={{ass:{contradiction: 'Contradiction Alert'}}} lang={ctx.lang} />
             ))}
 
             {/* Beginner Guide (ELI5) */}
-            <BeginnerGuideCard guide={DATA.AI_ASSESSMENT.beginnerGuide} lang={ctx.lang} repoName={session.repo.name} />
+            {aiAssessment.beginnerGuide && (
+              <BeginnerGuideCard guide={aiAssessment.beginnerGuide} lang={ctx.lang} repoName={session.repo.name} />
+            )}
 
             {/* Q&A List with Tab Categories */}
             <div>
@@ -124,7 +127,7 @@ export function OverviewTab({ session, ready, stage }) {
                 </h4>
                 
                 <div className="flex items-center gap-1 bg-ink-900/50 p-1 rounded-lg border border-ink-800 overflow-x-auto hide-scrollbar">
-                  {DATA.AI_ASSESSMENT.categories.map(cat => (
+                  {aiAssessment.categories?.map(cat => (
                     <button
                       key={cat.id}
                       onClick={() => setActiveQACat(cat.id)}
@@ -133,13 +136,13 @@ export function OverviewTab({ session, ready, stage }) {
                         activeQACat === cat.id ? "bg-ink-700 text-ink-50 shadow-sm" : "text-ink-300 hover:text-ink-100 hover:bg-ink-800/50"
                       )}
                     >
-                      {cat.name[ctx.lang]}
+                      {cat.name?.[ctx.lang] || cat.name?.en || cat.name}
                     </button>
                   ))}
                 </div>
               </div>
               
-              {DATA.AI_ASSESSMENT.categories.map(cat => (
+              {aiAssessment.categories?.map(cat => (
                 <div key={cat.id} style={{ display: activeQACat === cat.id ? 'block' : 'none' }}>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {cat.qa.map((qa, i) => (
@@ -151,10 +154,12 @@ export function OverviewTab({ session, ready, stage }) {
             </div>
 
             {/* Suitability */}
-            <div className="flex flex-col md:flex-row gap-4">
-              <SuitabilityCard type="good" items={DATA.AI_ASSESSMENT.suitability.goodFor} t={{ass:{goodFor: 'Phù hợp cho', badFor: 'Không phù hợp'}}} lang={ctx.lang} />
-              <SuitabilityCard type="bad" items={DATA.AI_ASSESSMENT.suitability.badFor} t={{ass:{goodFor: 'Phù hợp cho', badFor: 'Không phù hợp'}}} lang={ctx.lang} />
-            </div>
+            {aiAssessment.suitability && (
+              <div className="flex flex-col md:flex-row gap-4">
+                <SuitabilityCard type="good" items={aiAssessment.suitability.goodFor} t={{ass:{goodFor: 'Phù hợp cho', badFor: 'Không phù hợp'}}} lang={ctx.lang} />
+                <SuitabilityCard type="bad" items={aiAssessment.suitability.badFor} t={{ass:{goodFor: 'Phù hợp cho', badFor: 'Không phù hợp'}}} lang={ctx.lang} />
+              </div>
+            )}
           </div>
         </Card>
       )}

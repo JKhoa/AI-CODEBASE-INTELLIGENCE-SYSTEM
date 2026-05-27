@@ -239,7 +239,8 @@ export async function POST(req) {
           modules: aiOutput.modules || [],
           security: aiOutput.security || [],
           tours: aiOutput.tours || [],
-          domains: aiOutput.domains || []
+          domains: aiOutput.domains || [],
+          aiAssessment: aiOutput.aiAssessment || null
         };
 
         const { data: fData, error: finalUpdateError } = await userSupabase.from('scans').update({

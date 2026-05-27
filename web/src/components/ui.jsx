@@ -319,13 +319,16 @@ export function RichQACard({ item, lang }) {
 export function BeginnerGuideCard({ guide, lang, repoName }) {
   if (!guide) return null;
   const isVi = lang === 'vi';
-  const analogy = guide.analogy[lang].replace(/Next\.js/gi, repoName || 'Dự án này');
-  const purpose = guide.simplePurpose[lang].replace(/Next\.js/gi, repoName || 'Dự án này');
+  
+  if (!guide) return null;
+  const example = guide.practicalExample?.[lang] || guide.practicalExample?.en || guide.practicalExample || '';
+  const purpose = guide.simplePurpose?.[lang] || guide.simplePurpose?.en || guide.simplePurpose || '';
+  const values = guide.coreValue || [];
 
   return (
-    <div className="bg-gradient-to-br from-indigo-900/30 to-ink-900/40 rounded-xl p-5 border border-indigo-500/20 mb-6">
-      <div className="flex items-center gap-2 mb-4">
-        <div className="w-8 h-8 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center">
+    <Card className="p-5 border-indigo-500/20 bg-indigo-950/10">
+      <div className="flex items-center gap-2 mb-4 pb-3 border-b border-indigo-500/10">
+        <div className="p-1.5 rounded-full bg-indigo-500/20 text-indigo-400">
           <Icon name="lightbulb" size={16} />
         </div>
         <h3 className="text-[15px] font-semibold text-indigo-300">
@@ -336,10 +339,10 @@ export function BeginnerGuideCard({ guide, lang, repoName }) {
       <div className="space-y-4">
         <div>
           <div className="text-[11px] font-bold uppercase tracking-wider text-indigo-400/70 mb-1">
-            {isVi ? 'Ví von (Analogy)' : 'Analogy'}
+            {isVi ? 'Ví dụ thực tế' : 'Practical Example'}
           </div>
           <div className="text-[13.5px] text-ink-50 leading-relaxed bg-ink-900/50 p-3 rounded-lg border border-indigo-500/10 italic">
-            "{analogy}"
+            "{example}"
           </div>
         </div>
 

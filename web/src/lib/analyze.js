@@ -306,16 +306,21 @@ export async function runGeminiAnalysis(geminiKey, blobs) {
   // Agent 2: Security & Tours
   const prompt2 = `Bạn là chuyên gia bảo mật và tài liệu phần mềm. Phân tích danh sách tệp tin sau:\n${fileList}\n\nTrả về JSON CHÍNH XÁC theo cấu trúc sau (KHÔNG text ngoài JSON):\n{\n  "security": [{"id":"SEC-001","severity":"high|medium|low","confirmed":true,"falsePositive":false,"title":{"vi":"string","en":"string"},"file":"string","line":"string","rule":"string","why":{"vi":"string","en":"string"},"code":"string","suggested":"string","refs":["CWE-XX"]}],\n  "tours": [{"order":1,"title":"string","description":{"vi":"string","en":"string"},"nodeIds":["file:path"]}]\n}`;
 
+  // Agent 3: AI Assessment (Practical examples, Contradictions, QA)
+  const prompt3 = `Bạn là chuyên gia giáo dục và đánh giá công nghệ. Dựa vào tệp tin sau để suy luận nghiệp vụ chính của repo:\n${fileList}\n\nTrả về JSON CHÍNH XÁC theo cấu trúc sau:\n{\n  "beginnerGuide": {"practicalExample":{"vi":"Ví dụ thực tế liên quan trực tiếp đến nghiệp vụ của repo (ví dụ: nếu làm về AI/CV thì đưa ví dụ xử lý ảnh/model)","en":"string"},"simplePurpose":{"vi":"string","en":"string"},"coreValue":[{"vi":"string","en":"string"}]},\n  "contradictions": [{"type":"high|medium|low","vi":"string","en":"string"}],\n  "suitability": {"goodFor":[{"vi":"string","en":"string"}],"badFor":[{"vi":"string","en":"string"}]},\n  "categories": [{"id":"string","name":{"vi":"string","en":"string"},"qa":[{"q":"string","a":{"vi":"string","en":"string"},"icon":"target","tags":["string"]}]}]\n}`;
+
   // Multi-Agent Parallel Execution
-  const [res1, res2] = await Promise.all([
+  const [res1, res2, res3] = await Promise.all([
     callLLM(prompt1, geminiKey),
-    callLLM(prompt2, geminiKey)
+    callLLM(prompt2, geminiKey),
+    callLLM(prompt3, geminiKey)
   ]);
 
   return {
     modules: res1?.modules || [],
     domains: res1?.domains || [],
     security: res2?.security || [],
-    tours: res2?.tours || []
+    tours: res2?.tours || [],
+    aiAssessment: res3 || null
   };
 }

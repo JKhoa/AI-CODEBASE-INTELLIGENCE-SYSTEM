@@ -249,9 +249,9 @@ export const CHAT_SEED_DONE = [
 
 export const AI_ASSESSMENT = {
   beginnerGuide: {
-    analogy: {
-      vi: 'Next.js giống như một căn nhà lắp ghép trọn gói (Pre-built House). Thay vì bạn phải tự mua từng viên gạch (HTML), tự trộn vữa (CSS), và tự thuê thợ lắp ống nước (Database, Routing), Next.js cung cấp sẵn cho bạn một bộ khung vững chắc. Nó còn thông minh đến mức tự động biết phòng nào cần xây cố định cho chắc (Static Pages) và phòng nào cần nội thất thay đổi liên tục (Dynamic Pages).',
-      en: "Next.js is like a premium pre-built modular house. Instead of buying individual bricks (HTML), mixing cement (CSS), and hiring plumbers for infrastructure (Database, Routing) from scratch, Next.js gives you a robust skeleton out of the box. It's smart enough to know which rooms should be solidly fixed (Static Pages) and which need constantly changing furniture (Dynamic Pages)."
+    practicalExample: {
+      vi: 'Giống như thay vì tự mua từng viên gạch, tự trộn vữa và tự thuê thợ lắp ống nước để xây nhà từ đầu, bạn mua một căn nhà lắp ghép trọn gói cao cấp. Bạn chỉ cần tập trung trang trí nội thất (code logic kinh doanh) mà không phải lo phần móng.',
+      en: "Instead of buying individual bricks, mixing cement, and hiring plumbers from scratch, you buy a premium modular house. You only focus on interior design (business logic) without worrying about the foundation."
     },
     simplePurpose: {
       vi: 'Giúp tạo ra các trang web tải siêu nhanh, chuẩn SEO (Google rất thích), mà lập trình viên không phải tốn hàng tuần để setup các cấu hình máy chủ phức tạp.',
