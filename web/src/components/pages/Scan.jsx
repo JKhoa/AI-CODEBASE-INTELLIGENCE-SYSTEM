@@ -59,7 +59,8 @@ export default function Scan({ sessionId }) {
                 ...(data.langs && { langs: data.langs }),
                 ...(data.arch && { arch: data.arch }),
                 ...(data.stats && { stats: data.stats }),
-                ...(data.repo && { repo: data.repo })
+                ...(data.repo && { repo: data.repo }),
+                ...(data.aiAssessment && { aiAssessment: data.aiAssessment })
               }));
             }
           });
@@ -95,6 +96,7 @@ export default function Scan({ sessionId }) {
             modules: raw?.modules || [], security: raw?.security || [],
             tours: raw?.tours || [], domains: raw?.domains || [],
             readme: raw?.readme || '', frameworks: [],
+            aiAssessment: raw?.aiAssessment || null,
           });
         }
         if (raw?.status === 'done' || raw?.status === 'failed' || raw?.stage === 'ready') return;

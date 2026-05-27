@@ -243,6 +243,7 @@ export function adaptSessionForUI(s) {
     domains: s.domains || [],
     readme: s.readme || '',
     visibility: s.visibility, shareToken: s.shareToken,
+    aiAssessment: s.aiAssessment || null,
   };
 }
 
