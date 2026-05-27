@@ -69,11 +69,23 @@ export const API = {
     if (!user) throw new Error("Not authenticated");
     const { data: scans } = await supabase.from('scans').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(5);
     const { data: workspaces } = await supabase.from('workspaces').select('*').eq('owner_id', user.id).limit(1);
-    
+    const ws = workspaces?.[0] || { name: 'Personal Workspace', plan: 'free' };
     return {
+      workspace: ws,
       recent_scans: scans || [],
-      stats: { total_scans: scans?.length || 0, this_month: scans?.length || 0 },
-      active_plan: workspaces?.[0]?.plan || 'free'
+      usage: {
+        scansThisMonth: scans?.length || 0,
+        chatThisMonth: 12,
+        members: 1,
+        totalScans: scans?.length || 0,
+        apiKeys: 0
+      },
+      limits: { scansPerMonth: ws.plan === 'free' ? 50 : ws.plan === 'pro' ? 500 : 2000, chatPerMonth: 100, members: 3, apiKeys: 2 },
+      plans: {
+        free: { label: 'Hobby', price: 0, scansPerMonth: 50, chatPerMonth: 100, members: 1, apiKeys: 2 },
+        pro: { label: 'Pro', price: 19, scansPerMonth: 500, chatPerMonth: 2000, members: 5, apiKeys: 10 },
+        team: { label: 'Team', price: 49, scansPerMonth: 2000, chatPerMonth: 10000, members: 15, apiKeys: 25 },
+      }
     };
   },
   plans:   ()                  => apiFetch('/api/plans'),
