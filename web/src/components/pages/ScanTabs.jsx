@@ -16,14 +16,67 @@ const InteractiveGraph = dynamic(() => import('@/src/components/InteractiveGraph
 
 
 // ----- Overview ----------------------------------------------------------
-export function OverviewTab({ session, ready }) {
+export function OverviewTab({ session, ready, stage }) {
   const ctx = useApp(); const t = ctx.t;
-  if (!ready) return (
-    <div className="p-6 max-w-5xl mx-auto space-y-4">
-      <div className="grid grid-cols-4 gap-3">{Array.from({length:4}).map((_,i)=><Skeleton key={i} className="h-20"/>)}</div>
-      <Skeleton className="h-40"/><Skeleton className="h-64"/>
-    </div>
-  );
+  if (!ready) {
+    const statusText = {
+      cloning: 'Đang tải Repository từ GitHub...',
+      parsing: `Đang phân tích cú pháp AST (${session?.stats?.files || 0} files tìm thấy)...`,
+      indexing: `Đang xây dựng đồ thị kiến trúc (${session?.arch?.nodes?.length || 0} nodes)...`,
+      summarizing: `Đang phân tích nghiệp vụ bằng Gemini AI...`,
+      ready: 'Hoàn tất.',
+      failed: 'Quá trình phân tích thất bại!',
+    }[stage] || 'Đang xử lý dữ liệu...';
+
+    const isFailed = stage === 'failed';
+    const stageOrder = ['cloning', 'parsing', 'indexing', 'summarizing'];
+    const currentIdx = stageOrder.indexOf(stage);
+
+    return (
+      <div className="p-6 max-w-5xl mx-auto flex flex-col items-center justify-center min-h-[60vh]">
+        <div className="w-full max-w-lg bg-ink-900 border border-ink-700 rounded-lg overflow-hidden shadow-2xl">
+          <div className="flex items-center gap-2 px-4 py-2 bg-ink-800 border-b border-ink-700">
+            <div className="w-3 h-3 rounded-full bg-red-500/80"></div>
+            <div className="w-3 h-3 rounded-full bg-amber-500/80"></div>
+            <div className="w-3 h-3 rounded-full bg-green-500/80"></div>
+            <span className="ml-2 text-[12px] font-mono text-ink-300">Scanner.exe</span>
+            {!isFailed && (
+              <span className="ml-auto text-[10px] font-mono text-ink-400">
+                Stage {currentIdx + 1}/{stageOrder.length}
+              </span>
+            )}
+          </div>
+          <div className="p-6 font-mono text-sm space-y-4">
+            <div className={`flex items-center gap-3 ${isFailed ? 'text-red-400' : 'text-teal-400'}`}>
+              {!isFailed && <Spinner size={16} />}
+              {isFailed && <Icon name="alert-triangle" size={16} />}
+              <span className={!isFailed ? "animate-pulse" : ""}>{statusText}</span>
+            </div>
+            <div className="text-ink-400 text-xs space-y-1.5">
+              <p className={currentIdx >= 0 ? 'text-teal-400/70' : ''}>{">"} Khởi tạo phiên quét phân tích... {currentIdx >= 1 && '✓'}</p>
+              <p className={currentIdx >= 1 ? 'text-teal-400/70' : ''}>{">"} Trích xuất cấu trúc thư mục ({session?.stats?.files || '...'} files)... {currentIdx >= 2 && '✓'}</p>
+              {currentIdx >= 1 && <p className={currentIdx >= 2 ? 'text-teal-400/70' : ''}>{">"} Phân tích imports và xây dựng đồ thị... {currentIdx >= 3 && '✓'}</p>}
+              {currentIdx >= 2 && <p className={currentIdx >= 3 ? 'text-teal-400/70' : ''}>{">"} Xây dựng architecture graph ({session?.arch?.nodes?.length || '...'} nodes)... {currentIdx >= 3 && '✓'}</p>}
+              {currentIdx >= 3 && <p>{">"} Truy vấn Gemini AI để phân tích modules, bảo mật, tours...</p>}
+              {isFailed && <p className="text-red-400 mt-2">{">"} LỖI: API từ chối phản hồi hoặc quá tải. Quét thất bại.</p>}
+            </div>
+            {/* Progress bar */}
+            {!isFailed && (
+              <div className="mt-2">
+                <div className="h-1.5 bg-ink-800 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-gradient-to-r from-teal-500 to-teal-400 rounded-full transition-all duration-1000 ease-out"
+                    style={{ width: `${Math.min(95, (currentIdx + 1) * 25)}%` }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+
+  }
   const stat = (label, value, icon) => (
     <Card className="p-4">
       <div className="flex items-center justify-between mb-2">
@@ -88,9 +141,11 @@ export function OverviewTab({ session, ready }) {
 }
 
 // ----- Architecture ------------------------------------------------------
-export function ArchitectureTab({ ready, session }) {
+export function ArchitectureTab({ 
+  ready, session, persona, searchQuery, setSearchQuery, 
+  highlightedNodes, setHighlightedNodes, selectedTourStep, setSelectedTourStep 
+}) {
   const ctx = useApp(); const t = ctx.t;
-  const [mode, setMode] = useState('compact');
   const [selectedNode, setSelectedNode] = useState(null);
   const [isGraphMounted, setIsGraphMounted] = useState(false);
 
@@ -100,6 +155,63 @@ export function ArchitectureTab({ ready, session }) {
   const ARCH_NODES = liveArch ? session.arch.nodes : DATA.ARCH_NODES;
   const ARCH_EDGES = liveArch ? session.arch.edges : DATA.ARCH_EDGES;
 
+  // Path Finder states
+  const [pathSource, setPathSource] = useState('');
+  const [pathTarget, setPathTarget] = useState('');
+
+  // Update highlighted nodes when searchQuery changes
+  useEffect(() => {
+    if (!searchQuery) {
+      setHighlightedNodes([]);
+      return;
+    }
+    const matches = ARCH_NODES
+      .filter(n => n.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                   n.type?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                   n.layer?.toLowerCase().includes(searchQuery.toLowerCase()))
+      .map(n => n.id);
+    setHighlightedNodes(matches);
+  }, [searchQuery, ARCH_NODES, setHighlightedNodes]);
+
+  // Update highlighted nodes when path finder inputs change
+  useEffect(() => {
+    if (!pathSource || !pathTarget) return;
+    
+    // Simple BFS/DFS pathfinding
+    const adj = {};
+    ARCH_NODES.forEach(n => { adj[n.id] = []; });
+    ARCH_EDGES.forEach(([u, v]) => {
+      if (adj[u] && adj[v]) adj[u].push(v);
+    });
+
+    const queue = [[pathSource]];
+    const visited = new Set([pathSource]);
+    let foundPath = null;
+
+    while (queue.length > 0) {
+      const path = queue.shift();
+      const node = path[path.length - 1];
+
+      if (node === pathTarget) {
+        foundPath = path;
+        break;
+      }
+
+      for (const neighbor of (adj[node] || [])) {
+        if (!visited.has(neighbor)) {
+          visited.add(neighbor);
+          queue.push([...path, neighbor]);
+        }
+      }
+    }
+
+    if (foundPath) {
+      setHighlightedNodes(foundPath);
+    } else {
+      setHighlightedNodes([]);
+    }
+  }, [pathSource, pathTarget, ARCH_NODES, ARCH_EDGES, setHighlightedNodes]);
+
   if (!ready) return (
     <div className="p-6 max-w-5xl mx-auto">
       <div className="flex items-center gap-2 text-ink-200 mb-4"><Spinner size={12} className="text-teal-400"/><span className="text-sm">{t.arch.loading}</span></div>
@@ -107,7 +219,7 @@ export function ArchitectureTab({ ready, session }) {
     </div>
   );
   
-  const layerColor = { frontend:'#60a5fa', backend:'#14B8A6', edge:'#a78bfa', infra:'#f59e0b', tooling:'#94a3b8', data:'#f472b6' };
+  const layerColor = { frontend:'#60a5fa', backend:'#14B8A6', edge:'#a78bfa', infra:'#f59e0b', tooling:'#94a3b8', data:'#f472b6', docs: '#b08bf5' };
   const nodeMap = Object.fromEntries(ARCH_NODES.map(n => [n.id, n]));
 
   const activeIncoming = selectedNode ? ARCH_EDGES.filter(e => e[1] === selectedNode.id).map(e => nodeMap[e[0]]?.label || e[0]) : [];
@@ -115,12 +227,62 @@ export function ArchitectureTab({ ready, session }) {
 
   return (
     <div className="p-6 max-w-[90rem] mx-auto">
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-4">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-4 gap-4">
         <div>
-          <h2 className="text-ink-50 text-lg font-semibold">{t.tabs.architecture} (Interactive Graph)</h2>
+          <h2 className="text-ink-50 text-lg font-semibold flex items-center gap-2">
+            <Icon name="network" size={16} className="text-teal-400" />
+            <span>{t.tabs.architecture} (Interactive Graph)</span>
+          </h2>
           <p className="text-ink-300 text-[12.5px] mt-0.5">{ctx.lang === 'vi' ? 'Biểu đồ tương tác 2D với dữ liệu từ AST + Gemini.' : 'Interactive 2D force graph powered by AST + Gemini.'}</p>
         </div>
-        <div className="flex items-center gap-3">
+        
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Search bar */}
+          <div className="flex items-center gap-2 px-3 h-8 rounded-lg bg-ink-900 border border-ink-700 text-xs">
+            <Icon name="search" size={11} className="text-ink-300"/>
+            <input 
+              value={searchQuery} 
+              onChange={e => setSearchQuery(e.target.value)} 
+              placeholder={ctx.lang === 'vi' ? 'Tìm kiếm node...' : 'Search nodes...'}
+              className="bg-transparent border-0 outline-none text-[12px] text-ink-50 placeholder:text-ink-400 w-36"
+            />
+            {searchQuery && (
+              <button onClick={() => setSearchQuery('')} className="text-ink-400 hover:text-ink-200">
+                <Icon name="x" size={9} />
+              </button>
+            )}
+          </div>
+
+          {/* Path Finder */}
+          <div className="flex items-center gap-1.5 text-xs bg-ink-900 border border-ink-700 rounded-lg p-1">
+            <span className="text-[10px] text-ink-300 uppercase px-1">{ctx.lang === 'vi' ? 'Tìm đường:' : 'Find Path:'}</span>
+            <select 
+              value={pathSource} 
+              onChange={e => setPathSource(e.target.value)} 
+              className="bg-ink-800 text-ink-100 border-0 outline-none text-xs rounded px-1.5 py-0.5 max-w-[100px]"
+            >
+              <option value="">{ctx.lang === 'vi' ? '-- Nguồn --' : '-- Source --'}</option>
+              {ARCH_NODES.map(n => <option key={n.id} value={n.id}>{n.label}</option>)}
+            </select>
+            <Icon name="arrow-right" size={10} className="text-ink-300" />
+            <select 
+              value={pathTarget} 
+              onChange={e => setPathTarget(e.target.value)} 
+              className="bg-ink-800 text-ink-100 border-0 outline-none text-xs rounded px-1.5 py-0.5 max-w-[100px]"
+            >
+              <option value="">{ctx.lang === 'vi' ? '-- Đích --' : '-- Target --'}</option>
+              {ARCH_NODES.map(n => <option key={n.id} value={n.id}>{n.label}</option>)}
+            </select>
+            {(pathSource || pathTarget) && (
+              <button 
+                onClick={() => { setPathSource(''); setPathTarget(''); setHighlightedNodes([]); }} 
+                className="text-ink-400 hover:text-ink-200 p-0.5"
+              >
+                <Icon name="x" size={10} />
+              </button>
+            )}
+          </div>
+
           <Badge className="bg-teal-500/10 text-teal-400 border border-teal-500/20 px-2 py-1"><Icon name="cpu" size={12} className="mr-1"/> AST Graph Engine</Badge>
           <Badge className="bg-purple-500/10 text-purple-400 border border-purple-500/20 px-2 py-1"><Icon name="sparkles" size={12} className="mr-1"/> AI Semantics</Badge>
         </div>
@@ -135,14 +297,15 @@ export function ArchitectureTab({ ready, session }) {
                 edges={ARCH_EDGES} 
                 layerColor={layerColor}
                 onNodeClick={setSelectedNode}
+                highlightedNodes={highlightedNodes}
              />}
              {!selectedNode && (
-               <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                 <div className="bg-ink-900/80 px-4 py-2 rounded-full border border-ink-700 text-sm text-ink-300 shadow-xl backdrop-blur-sm flex items-center gap-2">
-                   <Icon name="mouse-pointer-2" size={14}/>
-                   {ctx.lang === 'vi' ? 'Kéo thả và lăn chuột. Click vào một Node để bóc tách chi tiết.' : 'Drag to pan, scroll to zoom. Click a node to view details.'}
-                 </div>
-               </div>
+                <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                  <div className="bg-ink-900/80 px-4 py-2 rounded-full border border-ink-700 text-sm text-ink-300 shadow-xl backdrop-blur-sm flex items-center gap-2">
+                    <Icon name="mouse-pointer-2" size={14}/>
+                    {ctx.lang === 'vi' ? 'Kéo thả và lăn chuột. Click vào một Node để bóc tách chi tiết.' : 'Drag to pan, scroll to zoom. Click a node to view details.'}
+                  </div>
+                </div>
              )}
           </div>
           <div className="px-5 py-3 border-t border-ink-700 bg-ink-800 flex items-center gap-4 flex-wrap shrink-0">
@@ -156,7 +319,7 @@ export function ArchitectureTab({ ready, session }) {
         </Card>
 
         {/* Info Panel Area */}
-        <Card className={w-full lg:w-96 flex shrink-0 flex-col transition-all duration-300 }>
+        <Card className={`w-full lg:w-96 flex shrink-0 flex-col transition-all duration-300 ${selectedNode ? 'opacity-100 translate-x-0' : 'opacity-50 grayscale pointer-events-none'}`}>
           <div className="p-4 border-b border-ink-700 flex justify-between items-center bg-ink-800">
              <h3 className="font-semibold text-ink-50 truncate flex-1">{selectedNode ? selectedNode.label : 'Select a component'}</h3>
              {selectedNode && (
@@ -190,10 +353,28 @@ export function ArchitectureTab({ ready, session }) {
                    </div>
                  )}
                  <div>
-                   <div className="text-[11.5px] text-amber-400/80 uppercase tracking-wider mb-2 flex items-center gap-1.5"><Icon name="sparkles" size={13}/> AI Business Domain</div>
+                   <div className="text-[11.5px] text-amber-400/80 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                     <Icon name="sparkles" size={13}/> 
+                     {persona === 'junior' ? (ctx.lang === 'vi' ? 'Giải thích cơ bản' : 'Basic Explanation') :
+                      persona === 'pm' ? (ctx.lang === 'vi' ? 'Giá trị dự án' : 'Business Value') :
+                      (ctx.lang === 'vi' ? 'AI Business Domain' : 'AI Business Domain')}
+                   </div>
                    <div className="text-sm text-amber-100/90 leading-relaxed bg-amber-500/5 p-4 rounded-lg border border-amber-500/10">
-                      {(session?.modules || []).find(m => m.name.toLowerCase() === selectedNode.label.toLowerCase())?.purpose[ctx.lang] || 
-                       (ctx.lang === 'vi' ? 'Tiến hành quét và phân tích bằng Gemini để AI gán logic Business Domain cho Node này.' : 'Analyze with Gemini to generate AI business logic summary for this node.')}
+                      {persona === 'junior' ? (
+                         `${selectedNode.summary || ''}. 
+                          ${ctx.lang === 'vi' ? 'Bài học ngôn ngữ: ' : 'Language Lesson: '} 
+                          ${selectedNode.type === 'config' ? 
+                            (ctx.lang === 'vi' ? 'Tệp cấu hình giúp điều hướng và cài đặt môi trường cho dự án.' : 'Configuration file helps setup environments and paths for the project.') :
+                            (ctx.lang === 'vi' ? 'File code nguồn chính chứa các hàm logic thực thi hệ thống.' : 'Main source code file containing execution functions and system logic.')}`
+                      ) : persona === 'pm' ? (
+                         `${selectedNode.summary || ''}. 
+                          ${ctx.lang === 'vi' ? 'Độ phức tạp: ' : 'Complexity: '} ${selectedNode.complexity === 'simple' ? 'Thấp' : selectedNode.complexity === 'moderate' ? 'Trung bình' : 'Cao'}.
+                          ${ctx.lang === 'vi' ? 'Rủi ro: ' : 'Risk: '} ${selectedNode.complexity === 'complex' ? 'Cao (Cần giám sát)' : 'Thấp'}`
+                      ) : (
+                         (session?.modules || []).find(m => m.name.toLowerCase() === selectedNode.label.toLowerCase())?.purpose?.[ctx.lang] || 
+                         selectedNode.summary ||
+                         (ctx.lang === 'vi' ? 'Quét codebase để hiển thị thông tin nghiệp vụ đầy đủ.' : 'Run full codebase scan to view detailed domain context.')
+                      )}
                    </div>
                  </div>
                </>
@@ -519,6 +700,113 @@ export function FileViewer({ file, session }) {
       {err && <div className="text-red-300 text-sm">Error: {err}</div>}
       {binary && <div className="text-ink-300 text-sm italic">Binary file — preview not available.</div>}
       {!loading && !err && !binary && <CodeBlock code={code} lang={file.lang || 'ts'}/>}
+    </div>
+  );
+}
+
+// ----- ToursTab (NEW) ----------------------------------------------------
+export function ToursTab({ session, ready, selectedTourStep, setSelectedTourStep, setTab, setHighlightedNodes }) {
+  const ctx = useApp();
+  
+  if (!ready) {
+    return (
+      <div className="p-6 max-w-3xl mx-auto space-y-4">
+        <Skeleton className="h-10 w-44" />
+        <Skeleton className="h-32 rounded-xl" />
+        <Skeleton className="h-32 rounded-xl" />
+      </div>
+    );
+  }
+  
+  const tours = (session?.tours?.length) ? session.tours : [
+    {
+      order: 1,
+      title: ctx.lang === 'vi' ? '1. Điểm khởi đầu & Cấu hình' : '1. Entry & Config',
+      description: {
+        vi: 'Bắt đầu từ các tệp tin cấu hình cốt lõi để hiểu cách dự án thiết lập đường dẫn và các thư viện phụ thuộc.',
+        en: 'Start from core configurations to understand project setup, dependencies, and environment variables.'
+      },
+      nodeIds: ['config:package.json']
+    },
+    {
+      order: 2,
+      title: ctx.lang === 'vi' ? '2. Giao diện & Định tuyến' : '2. Routing & Interface',
+      description: {
+        vi: 'Khám phá cách các tệp tin frontend định tuyến và liên kết các trang hiển thị cho người dùng.',
+        en: 'Explore how frontend files manage routing and coordinate the main UI displays.'
+      },
+      nodeIds: ['file:web/app/page.jsx', 'file:web/app/layout.jsx']
+    },
+    {
+      order: 3,
+      title: ctx.lang === 'vi' ? '3. Lõi xử lý & API' : '3. Core Logic & API',
+      description: {
+        vi: 'Nơi chứa các hàm xử lý logic và kết nối tới database hoặc gọi các API dịch vụ bên ngoài.',
+        en: 'Where core functions process logic and interact with databases or call external APIs.'
+      },
+      nodeIds: ['file:web/app/api/scan/route.js', 'file:web/src/lib/analyze.js']
+    }
+  ];
+  
+  const handleStepClick = (step) => {
+    setSelectedTourStep(step);
+    setHighlightedNodes(step.nodeIds || []);
+    setTab('architecture');
+  };
+  
+  return (
+    <div className="p-6 max-w-4xl mx-auto">
+      <h2 className="text-ink-50 text-lg font-semibold mb-1 flex items-center gap-2">
+        <Icon name="compass" size={18} className="text-amber-400" />
+        {ctx.lang === 'vi' ? 'Hướng dẫn tìm hiểu Codebase (Guided Tours)' : 'Codebase Guided Tours'}
+      </h2>
+      <p className="text-ink-300 text-sm mb-6">
+        {ctx.lang === 'vi' ? 'Học hỏi cấu trúc hệ thống từng bước một theo thứ tự thiết kế của các kỹ sư kiến trúc.' : 'Learn the system structure step-by-step in the architectural design order.'}
+      </p>
+      
+      <div className="grid gap-4">
+        {tours.map((step) => {
+          const isSelected = selectedTourStep?.order === step.order;
+          return (
+            <Card 
+              key={step.order} 
+              className={cx('p-5 cursor-pointer transition-all border hover:border-amber-500/50 hover:bg-ink-900/40', 
+                isSelected ? 'border-amber-500 bg-amber-500/5 shadow-lg shadow-amber-500/5' : 'border-ink-700 bg-ink-900/20')}
+              onClick={() => handleStepClick(step)}
+            >
+              <div className="flex items-start gap-4">
+                <div className={cx('w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm shrink-0', 
+                  isSelected ? 'bg-amber-500 text-ink-950' : 'bg-ink-800 text-ink-300')}>
+                  {step.order}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-ink-50 font-medium text-base mb-1.5">{step.title}</h3>
+                  <p className="text-ink-200 text-sm leading-relaxed mb-3">
+                    {step.description?.[ctx.lang] || step.description}
+                  </p>
+                  
+                  {step.nodeIds && step.nodeIds.length > 0 && (
+                    <div className="flex flex-wrap gap-2 items-center">
+                      <span className="text-[11px] text-ink-400 font-medium uppercase tracking-wider">
+                        {ctx.lang === 'vi' ? 'Thành phần liên quan:' : 'Related components:'}
+                      </span>
+                      {step.nodeIds.map(nid => (
+                        <span key={nid} className="text-xs font-mono bg-ink-800 border border-ink-700 text-ink-100 rounded-md px-2 py-0.5">
+                          {nid.split(':').pop()}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <Button size="sm" variant={isSelected ? 'solid' : 'outline'} className="shrink-0 self-center">
+                  <Icon name="network" size={12} className="mr-1" />
+                  {ctx.lang === 'vi' ? 'Xem trên Graph' : 'View Graph'}
+                </Button>
+              </div>
+            </Card>
+          );
+        })}
+      </div>
     </div>
   );
 }

@@ -41,11 +41,11 @@ function LandingInner() {
     }
     setBusy(true);
     try {
-      const s = await API.startScan(trimmed, null, auth.workspace?.id);
-      ctx.navigate('/scan/' + s.id);
+      // Instead of calling startScan, redirect to the new streaming page
+      const wsId = auth.workspace?.id || '';
+      ctx.navigate(`/scan/new?url=${encodeURIComponent(trimmed)}&workspaceId=${encodeURIComponent(wsId)}`);
     } catch (err) {
-      console.error('startScan failed', err);
-      alert(err?.payload?.detail || err.message || 'Scan failed');
+      console.error('navigation failed', err);
     } finally { setBusy(false); }
   };
 

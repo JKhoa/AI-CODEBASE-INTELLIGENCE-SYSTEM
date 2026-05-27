@@ -313,68 +313,265 @@ function Workspace({ ctx, session, tab, setTab, ready, dataReady, archReady, ope
   );
 }
 
-// -------------------- Tab: Overview --------------------
+// -------------------- Tab: Overview (Enhanced) --------------------
 function OverviewTab({ ctx, session, ready }) {
   const t = ctx.t;
+  const [activeLang, setActiveLang] = React.useState(null);
+  const [activeFw, setActiveFw] = React.useState(null);
+  const [activeQACat, setActiveQACat] = React.useState(window.DATA.AI_ASSESSMENT?.categories[0]?.id || 'purpose');
+
   if (!ready) {
     return (
       <div className="p-6 space-y-4 max-w-5xl mx-auto">
         <div className="grid grid-cols-4 gap-3">
-          {Array.from({length: 4}).map((_, i) => <Skeleton key={i} className="h-20"/>)}
+          {Array.from({length: 4}).map((_, i) => <Skeleton key={i} className="h-24"/>)}
         </div>
         <Skeleton className="h-40"/>
         <Skeleton className="h-64"/>
       </div>
     );
   }
-  const stat = (label, value, icon) => (
-    <Card className="p-4">
-      <div className="flex items-center justify-between mb-2">
+
+  // Sparkline mock data
+  const sparkData = {
+    loc: [820000, 940000, 1020000, 1100000, 1180000, 1230000, 1284530],
+    files: [4200, 4800, 5300, 5800, 6200, 6600, 6932],
+    modules: [28, 32, 35, 38, 42, 45, 47],
+    contributors: [1800, 2100, 2400, 2600, 2800, 3000, 3128],
+  };
+
+  const statCard = (label, value, icon, trend, sparkline, sparkColor) => (
+    <Card className="p-4 stat-card">
+      <div className="flex items-center justify-between mb-1">
         <span className="text-ink-300 text-[11.5px] uppercase tracking-wide">{label}</span>
-        <Icon name={icon} size={13} className="text-ink-300"/>
+        <div className="flex items-center gap-2">
+          <Sparkline data={sparkline} color={sparkColor || '#14B8A6'} width={48} height={16}/>
+          <Icon name={icon} size={13} className="text-ink-300"/>
+        </div>
       </div>
-      <div className="font-mono text-ink-50 text-2xl tracking-tight">{value}</div>
+      <div className="font-mono text-ink-50 text-2xl tracking-tight mb-1">
+        <AnimatedNumber value={value}/>
+      </div>
+      {trend && (
+        <div className="flex items-center gap-1 text-[11px]">
+          <Icon name="arrow-up-right" size={10} className="text-emerald-400"/>
+          <span className="text-emerald-400">{trend}</span>
+        </div>
+      )}
     </Card>
   );
+
   return (
     <div className="p-6 max-w-5xl mx-auto">
+      {/* AI Intelligence Report */}
+      {window.DATA.AI_ASSESSMENT && (
+        <Card className="mb-5 overflow-hidden border-teal-500/30">
+          <div className="bg-gradient-to-r from-teal-900/40 to-ink-900/40 p-5 border-b border-ink-800">
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <Icon name="sparkles" size={16} className="text-teal-400"/>
+                  <h3 className="text-ink-50 font-medium text-[15px]">{t.ass.title}</h3>
+                </div>
+                <p className="text-ink-300 text-[13px]">
+                  {ctx.lang === 'vi' ? 'Đánh giá chuyên sâu dựa trên lý luận AI và phân tích mã nguồn tĩnh.' : 'Deep assessment based on AI reasoning and static code analysis.'}
+                </p>
+              </div>
+              <ConfidenceGauge score={window.DATA.AI_ASSESSMENT.confidence} />
+            </div>
+          </div>
+          <div className="p-5 space-y-6">
+            {/* Contradictions */}
+            {window.DATA.AI_ASSESSMENT.contradictions.map((c, i) => (
+              <ContradictionAlert key={i} item={c} t={t} lang={ctx.lang} />
+            ))}
+
+            {/* Beginner Guide (ELI5) */}
+            <BeginnerGuideCard guide={window.DATA.AI_ASSESSMENT.beginnerGuide} lang={ctx.lang} repoName={session.repo.name} />
+
+            {/* Q&A List with Tab Categories */}
+            <div>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                <h4 className="text-sm font-medium text-ink-100 flex items-center gap-2">
+                  <Icon name="message-square" size={14}/>
+                  {ctx.lang === 'vi' ? 'Hỏi đáp chuyên sâu' : 'Deep Q&A'}
+                </h4>
+                
+                <div className="flex items-center gap-1 bg-ink-900/50 p-1 rounded-lg border border-ink-800 overflow-x-auto hide-scrollbar">
+                  {window.DATA.AI_ASSESSMENT.categories.map(cat => (
+                    <button
+                      key={cat.id}
+                      onClick={() => setActiveQACat(cat.id)}
+                      className={cx(
+                        "px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors whitespace-nowrap",
+                        activeQACat === cat.id ? "bg-ink-700 text-ink-50 shadow-sm" : "text-ink-300 hover:text-ink-100 hover:bg-ink-800/50"
+                      )}
+                    >
+                      {cat.name[ctx.lang]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              {window.DATA.AI_ASSESSMENT.categories.map(cat => (
+                <div key={cat.id} style={{ display: activeQACat === cat.id ? 'block' : 'none' }}>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {cat.qa.map((qa, i) => (
+                      <RichQACard key={i} item={qa} lang={ctx.lang} />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Suitability */}
+            <div className="flex flex-col md:flex-row gap-4">
+              <SuitabilityCard type="good" items={window.DATA.AI_ASSESSMENT.suitability.goodFor} t={t} lang={ctx.lang} />
+              <SuitabilityCard type="bad" items={window.DATA.AI_ASSESSMENT.suitability.badFor} t={t} lang={ctx.lang} />
+            </div>
+
+            {/* Metrics */}
+            <div>
+              <h4 className="text-sm font-medium text-ink-100 mb-3 flex items-center gap-2">
+                <Icon name="activity" size={14}/>
+                {t.ass.metrics}
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {window.DATA.AI_ASSESSMENT.metrics.map((m, i) => (
+                  <div key={i} className="flex items-center gap-3 p-3 bg-ink-900/30 border border-ink-800 rounded-lg transition-colors hover:border-teal-500/50 hover:bg-ink-900/50 cursor-default">
+                    <div className={cx("w-8 h-8 rounded bg-ink-800 flex items-center justify-center flex-shrink-0", m.highlight === 'amber' ? 'text-amber-400' : 'text-teal-400')}>
+                      <Icon name={m.icon} size={14}/>
+                    </div>
+                    <div>
+                      <div className="text-[11px] text-ink-300 uppercase tracking-wider">{m.cat[ctx.lang]}</div>
+                      <div className={cx("text-[13px] font-medium mt-0.5", m.highlight === 'amber' ? 'text-amber-400' : 'text-ink-50')}>{m.res[ctx.lang]}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Stat Cards with sparklines */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-        {stat(t.overview.stats.loc, session.stats.loc.toLocaleString(), 'code-2')}
-        {stat(t.overview.stats.files, session.stats.files.toLocaleString(), 'file')}
-        {stat(t.overview.stats.modules, session.stats.modules, 'blocks')}
-        {stat(t.overview.stats.contributors, session.stats.contributors.toLocaleString(), 'user')}
+        {statCard(t.overview.stats.loc, session.stats.loc, 'code-2', '+8.4%', sparkData.loc, '#14B8A6')}
+        {statCard(t.overview.stats.files, session.stats.files, 'file', '+5.2%', sparkData.files, '#3B82F6')}
+        {statCard(t.overview.stats.modules, session.stats.modules, 'blocks', '+4.4%', sparkData.modules, '#8B5CF6')}
+        {statCard(t.overview.stats.contributors, session.stats.contributors, 'user', '+12%', sparkData.contributors, '#F59E0B')}
       </div>
 
-      {/* Languages bar */}
+      {/* Interactive Languages bar */}
       <Card className="p-5 mb-5">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-ink-50 font-medium">{t.overview.langs}</h3>
           <span className="text-ink-300 text-xs">{session.langs.length} {ctx.lang === 'vi' ? 'ngôn ngữ' : 'languages'}</span>
         </div>
-        <div className="flex h-2 rounded-full overflow-hidden bg-ink-700 mb-3">
-          {session.langs.map(l => <div key={l.name} style={{ width: l.pct + '%', background: l.color }}/>)}
+        <div className="flex h-3 rounded-full overflow-hidden bg-ink-700 mb-4 cursor-pointer">
+          {session.langs.map(l => (
+            <Tooltip key={l.name} text={`${l.name}: ${l.pct}%`}>
+              <div
+                onClick={() => setActiveLang(activeLang === l.name ? null : l.name)}
+                className="transition-all duration-300 hover:opacity-80"
+                style={{
+                  width: l.pct + '%',
+                  background: l.color,
+                  opacity: activeLang && activeLang !== l.name ? 0.3 : 1,
+                }}
+              />
+            </Tooltip>
+          ))}
         </div>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
           {session.langs.map(l => (
-            <div key={l.name} className="flex items-center gap-2 text-[12.5px]">
+            <div
+              key={l.name}
+              onClick={() => setActiveLang(activeLang === l.name ? null : l.name)}
+              className={cx('lang-chip flex items-center gap-2 text-[12.5px]', activeLang === l.name && 'active')}
+            >
               <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: l.color }}/>
               <span className="text-ink-100">{l.name}</span>
               <span className="text-ink-300 ml-auto font-mono">{l.pct}%</span>
             </div>
           ))}
         </div>
+        {/* Detail panel when language is selected */}
+        {activeLang && (() => {
+          const lang = session.langs.find(l => l.name === activeLang);
+          if (!lang) return null;
+          const estimatedFiles = Math.round(session.stats.files * lang.pct / 100);
+          const estimatedLoc = Math.round(session.stats.loc * lang.pct / 100);
+          return (
+            <div className="mt-4 detail-panel rounded-lg border border-ink-700 overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-2.5 bg-ink-900/60 border-b border-ink-700/60">
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-sm" style={{ background: lang.color }}/>
+                  <span className="text-ink-50 font-medium text-[13px]">{lang.name}</span>
+                  <Badge tone="teal">{lang.pct}%</Badge>
+                </div>
+                <button onClick={() => setActiveLang(null)} className="text-ink-300 hover:text-ink-100">
+                  <Icon name="x" size={14}/>
+                </button>
+              </div>
+              <div className="p-4 grid grid-cols-3 gap-4 text-[13px]">
+                <div>
+                  <div className="text-ink-300 text-[11px] uppercase tracking-wider mb-1">{ctx.lang === 'vi' ? 'Ước tính files' : 'Est. files'}</div>
+                  <div className="text-ink-50 font-mono">{estimatedFiles.toLocaleString()}</div>
+                </div>
+                <div>
+                  <div className="text-ink-300 text-[11px] uppercase tracking-wider mb-1">{ctx.lang === 'vi' ? 'Ước tính LOC' : 'Est. LOC'}</div>
+                  <div className="text-ink-50 font-mono">{estimatedLoc.toLocaleString()}</div>
+                </div>
+                <div>
+                  <div className="text-ink-300 text-[11px] uppercase tracking-wider mb-1">{ctx.lang === 'vi' ? 'Tỷ lệ' : 'Share'}</div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-1.5 rounded-full bg-ink-700 overflow-hidden">
+                      <div className="h-full rounded-full" style={{ width: lang.pct + '%', background: lang.color }}/>
+                    </div>
+                    <span className="text-ink-50 font-mono text-[12px]">{lang.pct}%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </Card>
 
-      {/* Frameworks */}
+      {/* Interactive Frameworks */}
       <Card className="p-5 mb-5">
         <h3 className="text-ink-50 font-medium mb-3">{t.overview.frameworks}</h3>
         <div className="flex flex-wrap gap-2">
           {session.frameworks.map(f => (
-            <span key={f} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-ink-700 border border-ink-600 text-[12.5px] text-ink-50">
-              <Icon name="package" size={11} className="text-teal-400"/>{f}
-            </span>
+            <Tooltip key={f} text={window.DATA.FRAMEWORK_DETAILS?.[f]?.[ctx.lang] || f}>
+              <span
+                onClick={() => setActiveFw(activeFw === f ? null : f)}
+                className={cx(
+                  'fw-chip inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-ink-700 border border-ink-600 text-[12.5px] text-ink-50',
+                  activeFw === f && 'border-teal-500/50 bg-teal-500/10'
+                )}
+              >
+                <Icon name="package" size={11} className="text-teal-400"/>{f}
+              </span>
+            </Tooltip>
           ))}
         </div>
+        {activeFw && window.DATA.FRAMEWORK_DETAILS?.[activeFw] && (
+          <div className="mt-3 detail-panel px-4 py-3 rounded-lg border border-ink-700 bg-ink-900/60">
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center gap-2">
+                <Icon name="package" size={13} className="text-teal-400"/>
+                <span className="text-ink-50 font-medium text-[13px]">{activeFw}</span>
+              </div>
+              <button onClick={() => setActiveFw(null)} className="text-ink-300 hover:text-ink-100">
+                <Icon name="x" size={14}/>
+              </button>
+            </div>
+            <p className="text-ink-200 text-[13px] leading-relaxed">
+              {window.DATA.FRAMEWORK_DETAILS[activeFw][ctx.lang]}
+            </p>
+          </div>
+        )}
       </Card>
 
       {/* README */}

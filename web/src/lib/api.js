@@ -24,7 +24,15 @@ export function getAuthToken()   { return _authToken; }
 
 async function apiFetch(path, opts = {}) {
   const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
-  if (_authToken) headers['Authorization'] = 'Bearer ' + _authToken;
+  
+  // Get token from Supabase Auth
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session?.access_token) {
+    headers['Authorization'] = 'Bearer ' + session.access_token;
+  } else if (_authToken) {
+    headers['Authorization'] = 'Bearer ' + _authToken; // fallback
+  }
+
   const res = await fetch(API_BASE + path, { ...opts, headers });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
@@ -90,6 +98,34 @@ export const API = {
   async startScan(url, token, workspaceId) {
     return apiFetch('/api/scan', { method: 'POST', body: JSON.stringify({ url, token: token || null, workspaceId: workspaceId || null }) });
   },
+  scanStream: async (body, onChunk) => {
+    const headers = { 'Content-Type': 'application/json' };
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) headers['Authorization'] = 'Bearer ' + session.access_token;
+    else if (_authToken) headers['Authorization'] = 'Bearer ' + _authToken;
+
+    const res = await fetch(API_BASE + '/api/scan-stream', { method: 'POST', headers, body: JSON.stringify(body) });
+    if (!res.ok) throw new Error(`Stream Error: ${res.status}`);
+    
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value, { stream: true });
+      const lines = chunk.split('\n');
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const str = line.slice(6).trim();
+          if (str === '[DONE]') continue;
+          try {
+            const data = JSON.parse(str);
+            onChunk(data);
+          } catch (e) {}
+        }
+      }
+    }
+  },
   getScan: async (sid, share) => {
     let query = supabase.from('scans').select('*');
     if (share) query = query.eq('share_token', share);
@@ -121,6 +157,34 @@ export const API = {
     return await supabase.from('scans').delete().eq('id', sid);
   },
   chat:       (payload)         => apiFetch('/api/chat',    { method: 'POST', body: JSON.stringify(payload) }),
+  chatStream: async (body, onChunk) => {
+    const headers = { 'Content-Type': 'application/json' };
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) headers['Authorization'] = 'Bearer ' + session.access_token;
+    else if (_authToken) headers['Authorization'] = 'Bearer ' + _authToken;
+
+    const res = await fetch(API_BASE + '/api/chat-stream', { method: 'POST', headers, body: JSON.stringify(body) });
+    if (!res.ok) throw new Error(`Stream Error: ${res.status}`);
+    
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value, { stream: true });
+      const lines = chunk.split('\n');
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const str = line.slice(6).trim();
+          if (str === '[DONE]') return;
+          try {
+            const data = JSON.parse(str);
+            if (data.text) onChunk(data.text);
+          } catch (e) {}
+        }
+      }
+    }
+  },
   compare:    (a, b)            => apiFetch('/api/compare?a=' + encodeURIComponent(a) + '&b=' + encodeURIComponent(b)),
   docMd:      (sid, lang)       => apiFetch('/api/scan/' + encodeURIComponent(sid) + '/doc.md?lang=' + (lang || 'vi')),
   deps:       (sid)             => apiFetch('/api/scan/' + encodeURIComponent(sid) + '/dependencies'),
@@ -142,18 +206,20 @@ export function saveLlmCfg(cfg) {
 }
 
 // Adapter: server session → UI shape.
+// Handles partial data gracefully during progressive loading.
 export function adaptSessionForUI(s) {
   if (!s) return null;
+  const repo = s.repo || {};
   return {
     id: s.id, status: s.status, stage: s.stage, error: s.error,
     repo: {
-      url: s.repo.url, owner: s.repo.owner, name: s.repo.name,
-      branch: s.repo.branch || 'main', commit: (s.repo.commit || '').slice(0, 7),
-      stars: s.repo.stars || 0, forks: s.repo.forks || 0,
-      license: s.repo.license || '—', desc: s.repo.desc || { vi: '', en: '' },
+      url: repo.url || '', owner: repo.owner || '', name: repo.name || '',
+      branch: repo.branch || 'main', commit: (repo.commit || '').slice(0, 7),
+      stars: repo.stars || 0, forks: repo.forks || 0,
+      license: repo.license || '—', desc: repo.desc || { vi: '', en: '' },
     },
     stats: s.stats || { loc: 0, files: 0, modules: 0, contributors: 0, lastCommit: '' },
-    langs: (s.langs || []).map(l => ({ name: l.name, pct: Math.round(l.pct), color: l.color })),
+    langs: (s.langs || []).map(l => ({ name: l.name || '', pct: Math.round(l.pct || 0), color: l.color || '#ccc' })),
     frameworks: s.frameworks || [],
     tree:       s.tree       || [],
     arch:       s.arch       || { nodes: [], edges: [] },
@@ -161,6 +227,8 @@ export function adaptSessionForUI(s) {
     security:(s.security || []).map(f => ({
       ...f, title: f.title || { vi: f.rule, en: f.rule }, why: f.why || { vi: '', en: '' }, refs: f.refs || [],
     })),
+    tours: s.tours || [],
+    domains: s.domains || [],
     readme: s.readme || '',
     visibility: s.visibility, shareToken: s.shareToken,
   };

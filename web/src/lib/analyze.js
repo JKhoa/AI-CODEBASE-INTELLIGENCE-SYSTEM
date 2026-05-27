@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+// Removed GoogleGenerativeAI import as we are switching to Ollama
 
 // ---------------------------------------------------------------------------
 // 1. Import extraction (Mimicking analyze.py regex patterns in Python)
@@ -38,77 +38,192 @@ export function extractImports(path, content) {
 // ---------------------------------------------------------------------------
 // 2. Build architecture graph
 // ---------------------------------------------------------------------------
+
+
 const LAYER_HINTS = {
   "frontend": "frontend", "web": "frontend", "ui": "frontend", "client": "frontend",
   "app": "frontend", "apps": "frontend", "components": "frontend", "pages": "frontend",
   "src": "backend", "backend": "backend", "server": "backend", "api": "backend",
-  "internal": "backend", "lib": "backend", "db": "data", "infra": "infra"
+  "internal": "backend", "lib": "backend", "db": "data", "infra": "infra",
+  "config": "tooling", "tooling": "tooling", "docs": "docs", "document": "docs"
 };
 
-function topModule(path) {
-  const parts = path.split('/');
-  return parts.length === 1 ? path : parts[0];
+export function buildFileTree(files) {
+  const root = { type: 'dir', name: 'root', children: [] };
+  
+  files.forEach(f => {
+    const parts = f.path.split('/');
+    let current = root;
+    
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      const isLast = i === parts.length - 1;
+      
+      if (isLast) {
+        const ext = part.split('.').pop().toLowerCase();
+        current.children.push({
+          type: 'file',
+          name: part,
+          path: f.path,
+          lang: f.lang || ext,
+          loc: f.loc || 0,
+          size: f.size || 0,
+          role: f.role || { vi: f.path, en: f.path }
+        });
+      } else {
+        let dir = current.children.find(c => c.type === 'dir' && c.name === part);
+        if (!dir) {
+          dir = { type: 'dir', name: part, children: [] };
+          current.children.push(dir);
+        }
+        current = dir;
+      }
+    }
+  });
+  
+  const sortTree = (node) => {
+    if (node.children) {
+      node.children.sort((a, b) => {
+        if (a.type !== b.type) {
+          return a.type === 'dir' ? -1 : 1;
+        }
+        return a.name.localeCompare(b.name);
+      });
+      node.children.forEach(sortTree);
+    }
+  };
+  sortTree(root);
+  return root.children;
 }
 
 export function buildArchGraph(files, importsByFile) {
-  const fileToTop = {};
-  const sizes = {};
-  const langs = {};
-
+  const nodes = [];
+  const edges = [];
+  const fileSet = new Set(files.map(f => f.path));
+  
   files.forEach(f => {
-    const top = topModule(f.path);
-    fileToTop[f.path] = top;
-    sizes[top] = (sizes[top] || 0) + 1;
-    const lang = f.path.split('.').pop().toLowerCase();
-    if (!langs[top]) langs[top] = {};
-    langs[top][lang] = (langs[top][lang] || 0) + 1;
+    const ext = f.path.split('.').pop().toLowerCase();
+    const name = f.path.split('/').pop();
+    
+    let type = 'file';
+    let idPrefix = 'file:';
+    if (['json', 'yaml', 'yml', 'toml', 'ini', 'cfg', 'env'].includes(ext) || name.includes('config') || name.startsWith('.')) {
+      type = 'config';
+      idPrefix = 'config:';
+    } else if (['md', 'txt', 'pdf', 'rst'].includes(ext)) {
+      type = 'document';
+      idPrefix = 'document:';
+    } else if (f.path.includes('docker') || f.path.includes('k8s') || f.path.includes('compose')) {
+      type = 'service';
+      idPrefix = 'service:';
+    }
+    
+    const id = idPrefix + f.path;
+    let layer = 'backend';
+    const pathLower = f.path.toLowerCase();
+    for (const [key, value] of Object.entries(LAYER_HINTS)) {
+      if (pathLower.includes(key)) {
+        layer = value;
+        break;
+      }
+    }
+    
+    const loc = f.loc || Math.floor(Math.random() * 150) + 10;
+    
+    nodes.push({
+      id,
+      label: name,
+      type,
+      name,
+      filePath: f.path,
+      summary: f.role?.[ 'en' ] || `Codebase component handling ${name}`,
+      tags: [ext, layer, type],
+      complexity: loc < 50 ? 'simple' : loc < 200 ? 'moderate' : 'complex',
+      layer,
+      sub: `${loc} lines · ${ext}`
+    });
   });
-
-  const validModules = new Set(Object.values(fileToTop));
-  const edges = {};
-
-  // Build edges
+  
   Object.entries(importsByFile).forEach(([fpath, deps]) => {
-    const srcTop = fileToTop[fpath];
-    if (!srcTop) return;
+    const srcId = 'file:' + fpath;
     
     deps.forEach(d => {
-      const head = d ? d.split('/')[0].split('.')[0].replace(/^\./, '') : '';
-      if (!head || head === srcTop) return;
-      if (validModules.has(head)) {
-        const key = `${srcTop}__$$__${head}`;
-        edges[key] = (edges[key] || 0) + 1;
+      let destPath = null;
+      if (d.startsWith('.')) {
+        const parts = fpath.split('/');
+        parts.pop();
+        const depParts = d.split('/');
+        depParts.forEach(dp => {
+          if (dp === '..') parts.pop();
+          else if (dp !== '.') parts.push(dp);
+        });
+        const resolved = parts.join('/');
+        
+        for (const f of fileSet) {
+          if (f.startsWith(resolved)) {
+            destPath = f;
+            break;
+          }
+        }
+      } else {
+        for (const f of fileSet) {
+          if (f.endsWith(d) || f.includes('/' + d)) {
+            destPath = f;
+            break;
+          }
+        }
+      }
+      
+      if (destPath && destPath !== fpath) {
+        edges.push([srcId, 'file:' + destPath]);
       }
     });
   });
-
-  // Top modules
-  const topModules = Object.keys(sizes).sort((a, b) => sizes[b] - sizes[a]).slice(0, 9);
   
-  const nodes = topModules.map((m, i) => {
-    const col = i % 3;
-    const row = Math.floor(i / 3);
-    const mostCommonLang = Object.keys(langs[m] || {}).sort((a, b) => langs[m][b] - langs[m][a])[0] || 'txt';
-    return {
-      id: m,
-      label: m,
-      sub: `${sizes[m]} files · ${mostCommonLang}`,
-      layer: LAYER_HINTS[m.toLowerCase()] || "backend",
-      x: 60 + col * 240,
-      y: 40 + row * 140
-    };
-  });
-
-  const edgesFiltered = Object.keys(edges)
-    .map(key => key.split('__$$__'))
-    .filter(([a, b]) => topModules.includes(a) && topModules.includes(b));
-
-  return { nodes, edges: edgesFiltered };
+  return { nodes, edges };
 }
+
 
 // ---------------------------------------------------------------------------
 // 3. GitHub API Fetcher & LLM Summarize
 // ---------------------------------------------------------------------------
+
+export async function fetchGithubFileContent(owner, repo, path, branch = 'main', token = '') {
+  const headers = {};
+  if (token) headers['Authorization'] = `token ${token}`;
+  
+  // Try raw.githubusercontent.com first (fastest, no rate limit issues)
+  const url = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${path}`;
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 6000); // 6s timeout
+    const res = await fetch(url, { headers, signal: controller.signal });
+    clearTimeout(timeout);
+    if (res.ok) return await res.text();
+  } catch (e) {
+    if (e.name !== 'AbortError') console.error(`Error fetching raw ${path}:`, e.message);
+  }
+  
+  // Fallback to API (slower but more reliable)
+  const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${branch}`;
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(apiUrl, { headers, signal: controller.signal });
+    clearTimeout(timeout);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.content && data.encoding === 'base64') {
+        return Buffer.from(data.content, 'base64').toString('utf8');
+      }
+    }
+  } catch (e) {
+    if (e.name !== 'AbortError') console.error(`Error fetching api ${path}:`, e.message);
+  }
+  return null;
+}
+
+
 
 export async function fetchGithubTree(owner, repo, tokenStr) {
   const headers = {};
@@ -131,28 +246,76 @@ export async function fetchGithubTree(owner, repo, tokenStr) {
   return { repoData, blobs };
 }
 
-export async function runGeminiAnalysis(geminiKey, blobs) {
-  if (!geminiKey) return { modules: [], security: [] };
-  const genAI = new GoogleGenerativeAI(geminiKey);
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-  const prompt = `Bạn là chuyên gia phân tích kiến trúc phần mềm. 
-Hãy đọc danh sách các tệp tin trong repository này:
-${blobs.map(b => b.path).slice(0, 100).join('\n')}
-
-Vui lòng trả về dưới định dạng JSON với cấu trúc:
-{
-  "modules": [ { "name": "Auth", "purpose": {"vi": "Xác thực", "en":"Authentication"} } ],
-  "security": []
-}`;
-
-  try {
-    const result = await model.generateContent(prompt);
-    let text = result.response.text();
-    text = text.replace(/```json/g, '').replace(/```/g, '').trim();
-    return JSON.parse(text);
-  } catch (err) {
-    console.error("Gemini Parse Error:", err);
-    return { modules: [], security: [] };
+async function callLLM(prompt, geminiKey, timeoutMs = 30000) {
+  if (geminiKey) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { responseMimeType: 'application/json', temperature: 0.3, maxOutputTokens: 4096 }
+        })
+      });
+      clearTimeout(timeout);
+      if (response.ok) {
+        const json = await response.json();
+        let text = json.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+        return JSON.parse(text);
+      } else {
+        console.error("Gemini API non-OK:", response.status, await response.text());
+      }
+    } catch (err) {
+      console.error("Gemini Error, fallback to Ollama:", err.name === 'AbortError' ? 'Timeout' : err.message);
+    }
   }
+
+  const ollamaModel = process.env.OLLAMA_MODEL || "qwen2.5-coder";
+  const ollamaUrl = process.env.OLLAMA_URL || "http://127.0.0.1:11434/api/generate";
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs + 15000);
+    const res = await fetch(ollamaUrl, {
+      method: "POST", headers: { "Content-Type": "application/json" }, signal: controller.signal,
+      body: JSON.stringify({ model: ollamaModel, prompt, stream: false, format: "json" })
+    });
+    clearTimeout(timeout);
+    if (res.ok) {
+      const data = await res.json();
+      let text = (data.response || "").replace(/```json/g, '').replace(/```/g, '').trim();
+      return JSON.parse(text);
+    }
+  } catch (err) {
+    console.error("Ollama Error:", err.name === 'AbortError' ? 'Timeout' : err.message);
+  }
+  return null;
 }
+
+export async function runGeminiAnalysis(geminiKey, blobs) {
+  // Limit file list for faster processing
+  const fileList = blobs.map(b => b.path).slice(0, 60).join('\n');
+  
+  // Agent 1: Architecture & Domains
+  const prompt1 = `Bạn là chuyên gia phân tích kiến trúc phần mềm. Phân tích danh sách tệp tin sau:\n${fileList}\n\nTrả về JSON CHÍNH XÁC theo cấu trúc sau (KHÔNG text ngoài JSON):\n{\n  "modules": [{"name":"string","purpose":{"vi":"string","en":"string"},"lang":"string","files":0,"fns":0,"risk":"Low|Medium|High","layer":"frontend|backend|infra|data|tooling|docs"}],\n  "domains": [{"name":{"vi":"string","en":"string"},"actors":["string"],"steps":[{"from":"string","to":"string","label":"string"}]}]\n}`;
+  
+  // Agent 2: Security & Tours
+  const prompt2 = `Bạn là chuyên gia bảo mật và tài liệu phần mềm. Phân tích danh sách tệp tin sau:\n${fileList}\n\nTrả về JSON CHÍNH XÁC theo cấu trúc sau (KHÔNG text ngoài JSON):\n{\n  "security": [{"id":"SEC-001","severity":"high|medium|low","confirmed":true,"falsePositive":false,"title":{"vi":"string","en":"string"},"file":"string","line":"string","rule":"string","why":{"vi":"string","en":"string"},"code":"string","suggested":"string","refs":["CWE-XX"]}],\n  "tours": [{"order":1,"title":"string","description":{"vi":"string","en":"string"},"nodeIds":["file:path"]}]\n}`;
+
+  // Multi-Agent Parallel Execution
+  const [res1, res2] = await Promise.all([
+    callLLM(prompt1, geminiKey),
+    callLLM(prompt2, geminiKey)
+  ]);
+
+  return {
+    modules: res1?.modules || [],
+    domains: res1?.domains || [],
+    security: res2?.security || [],
+    tours: res2?.tours || []
+  };
+}

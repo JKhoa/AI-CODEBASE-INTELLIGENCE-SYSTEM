@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useApp } from '@/src/context/AppContext';
 import Icon from '@/src/components/Icon';
 import { Button, Badge, Skeleton, Spinner, Tooltip, LangIcon } from '@/src/components/ui';
@@ -8,7 +9,7 @@ import API, { adaptSessionForUI } from '@/src/lib/api';
 import DATA from '@/src/lib/data';
 import cx from '@/src/lib/cx';
 import {
-  OverviewTab, ArchitectureTab, FlowTab, ModulesTab, SecurityTab, DocsTab, FileViewer,
+  OverviewTab, ArchitectureTab, ToursTab, FlowTab, ModulesTab, SecurityTab, DocsTab, FileViewer,
 } from './ScanTabs';
 import AssistantPanel from './Assistant';
 
@@ -22,19 +23,90 @@ export default function Scan({ sessionId }) {
 
   const [remote, setRemote] = useState(null);
 
+  const sp = useSearchParams();
+
   useEffect(() => {
     if (isMock) return;
-    let stopped = false; let timer = null;
+
+    if (sid === 'new') {
+      const url = sp?.get('url');
+      const wsId = sp?.get('workspaceId');
+      if (!url) return;
+
+      let stopped = false;
+      const startStream = async () => {
+        setRemote({
+          id: sid, status: 'scanning', stage: 'cloning',
+          repo: { owner: '...', name: '...', branch: 'main', url: '', stars: 0, forks: 0, desc: { vi: '', en: '' } },
+          stats: { loc: 0, files: 0, modules: 0, contributors: 0 },
+          langs: [], tree: [], arch: { nodes: [], edges: [] }, modules: [], security: [], tours: [], domains: [], readme: '', frameworks: []
+        });
+
+        try {
+          await API.scanStream({ url, workspaceId: wsId, token: null }, (data) => {
+            if (stopped) return;
+            if (data.stage === 'ready' && data.scanId) {
+              ctx.navigate('/scan/' + data.scanId);
+            } else if (data.stage === 'failed') {
+              setRemote({ id: sid, status: 'failed', stage: 'failed' });
+            } else if (data.stage) {
+              setRemote(prev => ({
+                ...(prev || {}),
+                id: sid,
+                status: 'scanning',
+                stage: data.stage,
+                ...(data.tree && { tree: data.tree }),
+                ...(data.langs && { langs: data.langs }),
+                ...(data.arch && { arch: data.arch }),
+                ...(data.stats && { stats: data.stats }),
+                ...(data.repo && { repo: data.repo })
+              }));
+            }
+          });
+        } catch (e) {
+          if (!stopped) setRemote({ id: sid, status: 'failed', stage: 'failed' });
+        }
+      };
+      
+      startStream();
+      return () => { stopped = true; };
+    }
+
+    // Normal polling for existing scan
+    let stopped = false; let timer = null; let errorCount = 0;
     const tick = async () => {
       try {
         const raw = await API.getScan(sid);
+        errorCount = 0; // reset on success
         if (stopped) return;
-        setRemote(adaptSessionForUI(raw));
-        if (raw.status === 'ready' || raw.status === 'failed') return;
-        timer = setTimeout(tick, 1500);
+        // Safely adapt — raw may have partial data during scanning
+        try {
+          const adapted = adaptSessionForUI(raw);
+          setRemote(adapted);
+        } catch {
+          // Partial data, just store what we have
+          setRemote({
+            id: sid, status: raw?.status || 'scanning',
+            stage: raw?.stage || 'cloning',
+            repo: raw?.repo || { owner: '...', name: '...', branch: 'main', url: '', stars: 0, forks: 0, desc: { vi: '', en: '' } },
+            stats: raw?.stats || { loc: 0, files: 0, modules: 0, contributors: 0 },
+            langs: raw?.langs || [], tree: raw?.tree || [],
+            arch: raw?.arch || { nodes: [], edges: [] },
+            modules: raw?.modules || [], security: raw?.security || [],
+            tours: raw?.tours || [], domains: raw?.domains || [],
+            readme: raw?.readme || '', frameworks: [],
+          });
+        }
+        if (raw?.status === 'done' || raw?.status === 'failed' || raw?.stage === 'ready') return;
+        timer = setTimeout(tick, 2000);
       } catch (e) {
-        // Keep polling on transient errors (401 race with auth hydration, 5xx, etc.)
-        if (!stopped) timer = setTimeout(tick, 2000);
+        errorCount++;
+        if (errorCount > 3) {
+          console.error("Scan fetch failed 3 times, marking as failed:", e);
+          setRemote({ id: sid, status: 'failed', stage: 'failed' });
+          return;
+        }
+        if (!stopped) timer = setTimeout(tick, 3000);
       }
     };
     tick();
@@ -43,9 +115,19 @@ export default function Scan({ sessionId }) {
 
   const session = remote || (isLive ? DATA.SCAN_LIVE : DATA.SCAN_DONE);
 
+  // Map real backend stage from data.stage field or status
   const [stage, setStage] = useState(isMock ? (isLive ? 'cloning' : 'ready') : 'cloning');
   useEffect(() => {
-    if (!isMock) { if (remote?.stage) setStage(remote.stage); return; }
+    if (!isMock) {
+      if (remote?.status === 'failed') { setStage('failed'); return; }
+      if (remote?.status === 'done') { setStage('ready'); return; }
+      // Read real stage from backend data
+      const backendStage = remote?.stage;
+      if (backendStage) {
+        setStage(backendStage);
+      }
+      return;
+    }
     if (!isLive || stage === 'ready') return;
     const order = ['cloning', 'parsing', 'indexing', 'summarizing', 'ready'];
     const next = order[order.indexOf(stage) + 1];
@@ -64,20 +146,58 @@ export default function Scan({ sessionId }) {
 
   const [tab, setTab] = useState('overview');
   const [openFile, setOpenFile] = useState(null);
+  
+  // Custom states inspired by Understand-Anything
+  const [persona, setPersona] = useState('power');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [highlightedNodes, setHighlightedNodes] = useState([]);
+  const [selectedTourStep, setSelectedTourStep] = useState(null);
 
   const stageIdx = ['cloning','parsing','indexing','summarizing','ready'].indexOf(stage);
   const treeReady = stageIdx >= 1, dataReady = stageIdx >= 2, archReady = stageIdx >= 3;
   const ready = stage === 'ready';
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col bg-ink-950 text-ink-50">
       <div className="border-b border-ink-700 bg-ink-900/40 px-4 h-12 flex items-center gap-3 flex-shrink-0">
         <Icon name="github" size={15} className="text-ink-200"/>
         <span className="font-mono text-ink-50 text-[13.5px]">{session.repo.owner}/{session.repo.name}</span>
         <Badge tone="slate"><Icon name="git-branch" size={10}/>{session.repo.branch}</Badge>
         {session.repo.commit && <Badge tone="slate" className="font-mono">{session.repo.commit}</Badge>}
-        <span className="hidden md:inline text-ink-300 text-[12.5px] truncate max-w-[40%]">{session.repo.desc?.[ctx.lang] || ''}</span>
-        <div className="ml-auto flex items-center gap-2">
+        <span className="hidden md:inline text-ink-300 text-[12.5px] truncate max-w-[30%]">{session.repo.desc?.[ctx.lang] || ''}</span>
+        
+        <div className="ml-auto flex items-center gap-3">
+          {/* Persona Selector */}
+          <div className="flex items-center bg-ink-800 rounded-lg p-0.5 border border-ink-700 text-xs">
+            <button
+              onClick={() => setPersona('junior')}
+              className={cx('px-2 py-1 rounded-md transition-all font-medium flex items-center gap-1', 
+                persona === 'junior' ? 'bg-amber-500/20 text-amber-300 font-semibold' : 'text-ink-300 hover:text-ink-100')}
+              title={ctx.lang === 'vi' ? 'Lập trình viên tập sự' : 'Junior Developer'}
+            >
+              <Icon name="user" size={11} />
+              <span>{ctx.lang === 'vi' ? 'Junior' : 'Junior'}</span>
+            </button>
+            <button
+              onClick={() => setPersona('pm')}
+              className={cx('px-2 py-1 rounded-md transition-all font-medium flex items-center gap-1', 
+                persona === 'pm' ? 'bg-teal-500/20 text-teal-300 font-semibold' : 'text-ink-300 hover:text-ink-100')}
+              title={ctx.lang === 'vi' ? 'Quản lý dự án' : 'Project Manager'}
+            >
+              <Icon name="briefcase" size={11} />
+              <span>{ctx.lang === 'vi' ? 'PM' : 'PM'}</span>
+            </button>
+            <button
+              onClick={() => setPersona('power')}
+              className={cx('px-2 py-1 rounded-md transition-all font-medium flex items-center gap-1', 
+                persona === 'power' ? 'bg-purple-500/20 text-purple-300 font-semibold' : 'text-ink-300 hover:text-ink-100')}
+              title={ctx.lang === 'vi' ? 'Chuyên gia' : 'Power User'}
+            >
+              <Icon name="cpu" size={11} />
+              <span>{ctx.lang === 'vi' ? 'Power' : 'Power'}</span>
+            </button>
+          </div>
+
           <Button size="sm" variant="outline" as="a" href={session.repo.url} target="_blank" rel="noreferrer">
             <Icon name="external-link" size={12}/> GitHub
           </Button>
@@ -91,9 +211,12 @@ export default function Scan({ sessionId }) {
         </div>
         <Resizer onResize={(dx) => setLeftW(w => Math.max(180, Math.min(380, w + dx)))}/>
         <div className="flex-1 min-w-0 overflow-hidden flex flex-col">
-          <Workspace tab={tab} setTab={setTab} session={session} ready={ready}
+          <Workspace tab={tab} setTab={setTab} session={session} ready={ready} stage={stage}
             dataReady={dataReady} archReady={archReady}
-            openFile={openFile} setOpenFile={setOpenFile}/>
+            openFile={openFile} setOpenFile={setOpenFile}
+            persona={persona} searchQuery={searchQuery} setSearchQuery={setSearchQuery}
+            highlightedNodes={highlightedNodes} setHighlightedNodes={setHighlightedNodes}
+            selectedTourStep={selectedTourStep} setSelectedTourStep={setSelectedTourStep}/>
         </div>
         <Resizer onResize={(dx) => setRightW(w => Math.max(320, Math.min(560, w - dx)))}/>
         <div className="flex-shrink-0 border-l border-ink-700 bg-ink-900/40" style={{ width: rightW }}>
@@ -180,11 +303,16 @@ function TreeNode({ node, depth, onOpen }) {
   );
 }
 
-function Workspace({ tab, setTab, session, ready, dataReady, archReady, openFile, setOpenFile }) {
+function Workspace({ 
+  tab, setTab, session, ready, stage, dataReady, archReady, openFile, setOpenFile,
+  persona, searchQuery, setSearchQuery, highlightedNodes, setHighlightedNodes,
+  selectedTourStep, setSelectedTourStep
+}) {
   const ctx = useApp(); const t = ctx.t;
   const TABS = [
     { id: 'overview',      label: t.tabs.overview,      icon: 'gauge' },
     { id: 'architecture',  label: t.tabs.architecture,  icon: 'network' },
+    { id: 'tours',         label: ctx.lang === 'vi' ? 'Hướng dẫn' : 'Guided Tours', icon: 'book-open' },
     { id: 'flow',          label: t.tabs.flow,          icon: 'workflow' },
     { id: 'modules',       label: t.tabs.modules,       icon: 'blocks' },
     { id: 'security',      label: t.tabs.security,      icon: 'shield' },
@@ -213,8 +341,14 @@ function Workspace({ tab, setTab, session, ready, dataReady, archReady, openFile
         )}
       </div>
       <div className="flex-1 overflow-y-auto bg-ink-950">
-        {tab === 'overview'      && <OverviewTab     session={session} ready={dataReady}/>}
-        {tab === 'architecture'  && <ArchitectureTab session={session} ready={archReady}/>}
+        {tab === 'overview'      && <OverviewTab     session={session} ready={dataReady} stage={stage}/>}
+        {tab === 'architecture'  && <ArchitectureTab session={session} ready={archReady}
+          persona={persona} searchQuery={searchQuery} setSearchQuery={setSearchQuery}
+          highlightedNodes={highlightedNodes} setHighlightedNodes={setHighlightedNodes}
+          selectedTourStep={selectedTourStep} setSelectedTourStep={setSelectedTourStep}/>}
+        {tab === 'tours'         && <ToursTab        session={session} ready={ready}
+          selectedTourStep={selectedTourStep} setSelectedTourStep={setSelectedTourStep}
+          setTab={setTab} setHighlightedNodes={setHighlightedNodes}/>}
         {tab === 'flow'          && <FlowTab         ready={archReady}/>}
         {tab === 'modules'       && <ModulesTab      session={session} ready={dataReady}/>}
         {tab === 'security'      && <SecurityTab     session={session} ready={ready}/>}
