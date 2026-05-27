@@ -369,6 +369,6 @@ export function BeginnerGuideCard({ guide, lang, repoName }) {
           </ul>
         </div>
       </div>
-    </div>
+    </Card>
   );
 }
