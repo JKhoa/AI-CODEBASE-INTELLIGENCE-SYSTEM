@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import cx from '@/src/lib/cx';
+import Icon from '@/src/components/Icon';
 
 export function Button({ as: Tag = 'button', variant = 'default', size = 'md', className = '', children, ...rest }) {
   const base = 'inline-flex items-center justify-center gap-2 font-medium transition-all whitespace-nowrap select-none disabled:opacity-50 disabled:pointer-events-none';
