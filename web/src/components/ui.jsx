@@ -238,3 +238,133 @@ export function RichText({ text }) {
     .replace(/\*\*([^*]+)\*\*/g, '<strong class="text-ink-50 font-semibold">$1</strong>');
   return <span dangerouslySetInnerHTML={{ __html: html }}/>;
 }
+
+export function ContradictionAlert({ item, t, lang }) {
+  const isHigh = item.type === 'high';
+  return (
+    <div className={cx("flex gap-3 p-4 rounded-lg border", isHigh ? "bg-red-500/10 border-red-500/20" : "bg-amber-500/10 border-amber-500/20")}>
+      <Icon name="alert-triangle" size={18} className={isHigh ? "text-red-400 mt-0.5 flex-shrink-0" : "text-amber-400 mt-0.5 flex-shrink-0"} />
+      <div>
+        <h4 className={cx("text-sm font-medium mb-1", isHigh ? "text-red-400" : "text-amber-400")}>
+          {t.ass?.contradiction || 'Contradiction Alert'}
+        </h4>
+        <p className="text-sm text-ink-200 leading-relaxed">{item[lang]}</p>
+      </div>
+    </div>
+  );
+}
+
+export function SuitabilityCard({ type, items, t, lang }) {
+  const isGood = type === 'good';
+  return (
+    <div className="flex-1 bg-ink-900/50 rounded-xl p-4 border border-ink-800">
+      <div className="flex items-center gap-2 mb-3">
+        <div className={cx("w-6 h-6 rounded-full flex items-center justify-center", isGood ? "bg-teal-500/20 text-teal-400" : "bg-ink-700 text-ink-300")}>
+          <Icon name={isGood ? "check" : "x"} size={12} />
+        </div>
+        <span className="text-sm font-medium text-ink-100">
+          {isGood ? (t.ass?.goodFor || 'Good For') : (t.ass?.badFor || 'Not Recommended')}
+        </span>
+      </div>
+      <ul className="space-y-2">
+        {items.map((it, idx) => (
+          <li key={idx} className="flex items-start gap-2 text-[13px] text-ink-200">
+            <span className={cx("mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0", isGood ? "bg-teal-500" : "bg-ink-600")} />
+            <span className="leading-relaxed">{it[lang]}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+export function RichQACard({ item, lang }) {
+  const { q, a, icon, status, tags } = item;
+  return (
+    <div className="bg-ink-900/40 rounded-xl p-4 border border-ink-800 hover:border-teal-500/30 transition-all duration-300 group flex flex-col h-full">
+      <div className="flex items-start gap-3 mb-3">
+        <div className="w-10 h-10 rounded-lg bg-ink-800 border border-ink-700 flex items-center justify-center flex-shrink-0 group-hover:bg-teal-500/10 group-hover:border-teal-500/30 group-hover:text-teal-400 transition-colors text-ink-300">
+          <Icon name={icon || 'info'} size={18} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h4 className="text-[14px] font-medium text-ink-50 mb-1 leading-snug">{q}</h4>
+          {status && (
+            <div className={cx("inline-flex items-center gap-1 text-[11px] font-medium uppercase tracking-wider px-2 py-0.5 rounded-full",
+              status.color === 'teal' ? 'bg-teal-500/10 text-teal-400 border border-teal-500/20' :
+              status.color === 'amber' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
+              status.color === 'blue' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' :
+              'bg-ink-800 text-ink-300 border border-ink-700'
+            )}>
+              <span className="w-1.5 h-1.5 rounded-full bg-current" />
+              {status.text}
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="text-[13px] text-ink-200 leading-relaxed flex-1">{a[lang]}</div>
+      {tags && tags.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mt-4 pt-3 border-t border-ink-800/50">
+          {tags.map((tag, idx) => (
+            <span key={idx} className="px-2 py-1 bg-ink-800/80 border border-ink-700 rounded text-[11px] text-ink-300 font-medium">
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function BeginnerGuideCard({ guide, lang, repoName }) {
+  if (!guide) return null;
+  const isVi = lang === 'vi';
+  const analogy = guide.analogy[lang].replace(/Next\.js/gi, repoName || 'Dự án này');
+  const purpose = guide.simplePurpose[lang].replace(/Next\.js/gi, repoName || 'Dự án này');
+
+  return (
+    <div className="bg-gradient-to-br from-indigo-900/30 to-ink-900/40 rounded-xl p-5 border border-indigo-500/20 mb-6">
+      <div className="flex items-center gap-2 mb-4">
+        <div className="w-8 h-8 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center">
+          <Icon name="lightbulb" size={16} />
+        </div>
+        <h3 className="text-[15px] font-semibold text-indigo-300">
+          {isVi ? 'Góc giải thích cho người mới (ELI5)' : 'Beginner\\'s Corner (ELI5)'}
+        </h3>
+      </div>
+      
+      <div className="space-y-4">
+        <div>
+          <div className="text-[11px] font-bold uppercase tracking-wider text-indigo-400/70 mb-1">
+            {isVi ? 'Ví von (Analogy)' : 'Analogy'}
+          </div>
+          <div className="text-[13.5px] text-ink-50 leading-relaxed bg-ink-900/50 p-3 rounded-lg border border-indigo-500/10 italic">
+            "{analogy}"
+          </div>
+        </div>
+
+        <div>
+          <div className="text-[11px] font-bold uppercase tracking-wider text-indigo-400/70 mb-1">
+            {isVi ? 'Thực chất làm gì?' : 'What does it do?'}
+          </div>
+          <div className="text-[13px] text-ink-200 leading-relaxed">
+            {purpose}
+          </div>
+        </div>
+
+        <div>
+          <div className="text-[11px] font-bold uppercase tracking-wider text-indigo-400/70 mb-1">
+            {isVi ? 'Tại sao nên dùng?' : 'Why use it?'}
+          </div>
+          <ul className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-1">
+            {guide.coreValue.map((cv, i) => (
+              <li key={i} className="flex items-start gap-2 text-[12.5px] text-ink-100 bg-ink-900/30 p-2 rounded-md border border-ink-800">
+                <span className="text-emerald-400 flex-shrink-0">✓</span>
+                <span>{cv[lang]}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+}

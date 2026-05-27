@@ -247,9 +247,102 @@ export const CHAT_SEED_DONE = [
     citations: [{ file: 'packages/next/src/server/next-server.ts', range: '1-200' }], t: 2 },
 ];
 
+export const AI_ASSESSMENT = {
+  beginnerGuide: {
+    analogy: {
+      vi: 'Next.js giống như một căn nhà lắp ghép trọn gói (Pre-built House). Thay vì bạn phải tự mua từng viên gạch (HTML), tự trộn vữa (CSS), và tự thuê thợ lắp ống nước (Database, Routing), Next.js cung cấp sẵn cho bạn một bộ khung vững chắc. Nó còn thông minh đến mức tự động biết phòng nào cần xây cố định cho chắc (Static Pages) và phòng nào cần nội thất thay đổi liên tục (Dynamic Pages).',
+      en: 'Next.js is like a premium pre-built modular house. Instead of buying individual bricks (HTML), mixing cement (CSS), and hiring plumbers for infrastructure (Database, Routing) from scratch, Next.js gives you a robust skeleton out of the box. It\\'s smart enough to know which rooms should be solidly fixed (Static Pages) and which need constantly changing furniture (Dynamic Pages).'
+    },
+    simplePurpose: {
+      vi: 'Giúp tạo ra các trang web tải siêu nhanh, chuẩn SEO (Google rất thích), mà lập trình viên không phải tốn hàng tuần để setup các cấu hình máy chủ phức tạp.',
+      en: 'Helps create blazing fast, highly SEO-optimized websites (Google loves them) without developers spending weeks setting up complex server configurations.'
+    },
+    coreValue: [
+      { vi: 'Tiết kiệm 40% thời gian setup ban đầu', en: 'Saves 40% of initial setup time' },
+      { vi: 'Trải nghiệm người dùng mượt như dùng app điện thoại', en: 'App-like smooth user experience' },
+      { vi: 'Tự động tối ưu hình ảnh, font chữ giúp web load cực nhanh', en: 'Auto-optimizes images and fonts for blazing fast loading' }
+    ]
+  },
+  confidence: 87,
+  contradictions: [
+    {
+      type: 'high',
+      vi: 'README khẳng định "100% an toàn và không thực thi mã độc" nhưng mã nguồn sử dụng `new Function()` để load template động từ URL không xác định tại runtime.',
+      en: 'README claims "100% secure and no arbitrary execution" but source code uses `new Function()` to load dynamic templates from an unverified runtime URL.',
+    },
+  ],
+  suitability: {
+    goodFor: [
+      { vi: 'Sản phẩm Production cấp Enterprise', en: 'Enterprise-grade Production apps' },
+      { vi: 'Ứng dụng SSR / ISR / SSG quy mô lớn', en: 'Large scale SSR / ISR / SSG apps' },
+      { vi: 'Dự án cần SEO mạnh mẽ', en: 'Projects requiring strong SEO' },
+    ],
+    badFor: [
+      { vi: 'Embedded systems hoặc thiết bị IoT', en: 'Embedded systems or IoT devices' },
+      { vi: 'Hệ thống HFT (High Frequency Trading)', en: 'High Frequency Trading (HFT)' },
+      { vi: 'Single Page App cực kỳ đơn giản (overkill)', en: 'Extremely simple Single Page Apps (overkill)' },
+    ],
+  },
+  metrics: [
+    { cat: { vi: 'Mục đích cốt lõi', en: 'Core Purpose' }, res: { vi: 'React Framework cho web apps', en: 'React Framework for web apps' }, icon: 'target' },
+    { cat: { vi: 'Kiến trúc hệ thống', en: 'Architecture' }, res: { vi: 'Modular, Server-First (RSC)', en: 'Modular, Server-First (RSC)' }, icon: 'layers' },
+    { cat: { vi: 'Khả năng mở rộng (Scale)', en: 'Scalability' }, res: { vi: 'Rất cao (Edge & Serverless ready)', en: 'Very High (Edge & Serverless ready)' }, icon: 'activity' },
+    { cat: { vi: 'Tính sẵn sàng (Production)', en: 'Production Ready' }, res: { vi: 'Đã sẵn sàng, được dùng bởi top tech', en: 'Ready, used by top tech companies' }, icon: 'check-circle' },
+    { cat: { vi: 'Độ tin cậy & Bảo trì', en: 'Maintainability' }, res: { vi: 'Tốt (TypeScript strict, có tests)', en: 'Good (Strict TypeScript, tested)' }, icon: 'shield' },
+    { cat: { vi: 'Xác suất mã độc', en: 'Malware Probability' }, res: { vi: '2% (Có cảnh báo dependency)', en: '2% (Dependency warning detected)' }, icon: 'bug', highlight: 'amber' },
+    { cat: { vi: 'Stack công nghệ', en: 'Tech Stack' }, res: { vi: 'React, Node.js, Rust (Turbopack)', en: 'React, Node.js, Rust (Turbopack)' }, icon: 'code-2' },
+    { cat: { vi: 'Trạng thái dự án', en: 'Project Health' }, res: { vi: 'Active (Community rất mạnh)', en: 'Active (Extremely strong community)' }, icon: 'heart' },
+    { cat: { vi: 'Rủi ro Dependency', en: 'Dependency Risk' }, res: { vi: 'Trung bình (Cần review event-stream)', en: 'Medium (Needs event-stream review)' }, icon: 'alert-triangle', highlight: 'amber' },
+  ],
+  categories: [
+    {
+      id: 'purpose',
+      name: { vi: 'Mục đích & Phù hợp', en: 'Purpose & Suitability' },
+      qa: [
+        { q: 'Repo này dùng để làm gì?', a: { vi: 'Framework React toàn diện để xây dựng ứng dụng web, hỗ trợ SSR, SSG và RSC.', en: 'Comprehensive React framework for building web apps with SSR, SSG and RSC.' }, icon: 'target', tags: ['React', 'Framework', 'Full-stack'] },
+        { q: 'Vì sao repo được tạo?', a: { vi: 'Giải quyết bài toán routing và rendering phức tạp cho React, mang lại trải nghiệm out-of-the-box cho web developer.', en: 'To solve complex routing and rendering for React, providing an out-of-the-box experience.' }, icon: 'zap', tags: ['SSR', 'Routing', 'DX'] },
+        { q: 'Có phù hợp với dự án của mình không?', a: { vi: 'Phù hợp nếu bạn cần SEO, web app quy mô lớn hoặc thương mại điện tử. Không phù hợp cho app quá đơn giản.', en: 'Suitable if you need SEO, large scale web apps or ecommerce. Not suitable for simple SPAs.' }, icon: 'check-circle', status: { text: 'High Fit', color: 'teal' } },
+        { q: 'Dùng AI/ML hay web/backend?', a: { vi: 'Web/Backend (Full-stack framework cho web, tích hợp được API route).', en: 'Web/Backend (Full-stack framework for web with integrated API routes).' }, icon: 'globe', tags: ['Web', 'Backend'] }
+      ]
+    },
+    {
+      id: 'arch',
+      name: { vi: 'Kiến trúc & Công nghệ', en: 'Architecture & Tech' },
+      qa: [
+        { q: 'Kiến trúc hệ thống ra sao?', a: { vi: 'Kiến trúc Modular, kết hợp App Router (file-system based) và Server-First approach.', en: 'Modular architecture, combining App Router (file-system based) and Server-First approach.' }, icon: 'network', tags: ['App Router', 'RSC', 'Modular'] },
+        { q: 'Có thể mở rộng hay scale không?', a: { vi: 'Rất cao. Tối ưu hóa sẵn cho kiến trúc Serverless và Edge computing.', en: 'Very high. Optimized for Serverless and Edge computing architectures.' }, icon: 'activity', status: { text: 'Very High', color: 'teal' }, tags: ['Serverless', 'Edge'] },
+        { q: 'Công nghệ gì?', a: { vi: 'React, Node.js, Webpack, Rust (Turbopack & SWC).', en: 'React, Node.js, Webpack, Rust (Turbopack & SWC).' }, icon: 'layers', tags: ['React', 'Node.js', 'Rust'] },
+        { q: 'Hiệu năng (Performance) thế nào?', a: { vi: 'Tối ưu hóa cực tốt. Tích hợp sẵn font, image, script optimization và pre-fetching.', en: 'Highly optimized. Built-in font, image, script optimization and pre-fetching.' }, icon: 'gauge', status: { text: 'Excellent', color: 'teal' } }
+      ]
+    },
+    {
+      id: 'quality',
+      name: { vi: 'Chất lượng & Bảo mật', en: 'Quality & Security' },
+      qa: [
+        { q: 'Chất lượng code thế nào?', a: { vi: 'Chất lượng cao, type-safe (TypeScript strict), kiến trúc modular rõ ràng và có độ phủ test rộng.', en: 'High quality, type-safe (Strict TypeScript), clear modular architecture with wide test coverage.' }, icon: 'code', status: { text: 'High Quality', color: 'blue' }, tags: ['TypeScript', 'Coverage'] },
+        { q: 'Có nguy cơ mã độc/backdoor không?', a: { vi: 'Phân tích mã nguồn tĩnh không phát hiện backdoor trực tiếp, tuy nhiên có rủi ro từ một số dependency cũ.', en: 'Static analysis found no direct backdoor, however there is risk from some outdated dependencies.' }, icon: 'shield', status: { text: 'Low Risk', color: 'teal' } },
+        { q: 'Dependency có rủi ro không?', a: { vi: 'Phát hiện 2 rủi ro mức độ thấp ở các thư viện phụ thuộc sâu (cần cập nhật).', en: 'Detected 2 low-level risks in deep dependencies (requires update).' }, icon: 'alert-triangle', status: { text: 'Medium', color: 'amber' }, tags: ['Audit needed'] },
+        { q: 'Testing coverage có tốt không?', a: { vi: 'Tốt. Bao gồm unit tests (Jest), integration tests, và e2e tests (Playwright/Cypress).', en: 'Good. Includes unit tests (Jest), integration tests, and e2e tests (Playwright/Cypress).' }, icon: 'check', status: { text: 'Good', color: 'teal' } }
+      ]
+    },
+    {
+      id: 'business',
+      name: { vi: 'Business & Cộng đồng', en: 'Business & Community' },
+      qa: [
+        { q: 'Có production-ready không?', a: { vi: 'Hoàn toàn sẵn sàng. Đã và đang được sử dụng bởi hàng ngàn công ty lớn.', en: 'Fully ready. Actively used by thousands of major enterprises.' }, icon: 'briefcase', status: { text: 'Ready', color: 'teal' } },
+        { q: 'Community mạnh không?', a: { vi: 'Cực kỳ mạnh. 100k+ stars trên GitHub, cộng đồng hỗ trợ lớn và hệ sinh thái phong phú.', en: 'Extremely strong. 100k+ stars on GitHub, huge support community and ecosystem.' }, icon: 'heart', status: { text: 'Strong', color: 'teal' }, tags: ['100k+ stars', 'Vercel'] },
+        { q: 'License có ổn không?', a: { vi: 'MIT License. Hoàn toàn an toàn để dùng cho các dự án thương mại mã nguồn đóng.', en: 'MIT License. Completely safe for closed-source commercial projects.' }, icon: 'lock', status: { text: 'Safe', color: 'teal' }, tags: ['MIT'] },
+        { q: 'Có nên fork / clone / integrate không?', a: { vi: 'Nên dùng `npx create-next-app` để integrate thay vì fork, trừ khi muốn đóng góp trực tiếp vào core.', en: 'Integrate via `npx create-next-app` instead of forking, unless contributing to core.' }, icon: 'git-branch', tags: ['Integrate'] },
+        { q: 'Có roadmap phát triển không?', a: { vi: 'Có rõ ràng. Hiện đang tập trung mạnh vào React Server Components (RSC) và Turbopack.', en: 'Clear roadmap. Currently focusing heavily on React Server Components (RSC) and Turbopack.' }, icon: 'map', tags: ['RSC', 'Turbopack'] },
+        { q: 'Có dead project không?', a: { vi: 'Không. Dự án liên tục có commits mỗi ngày và release bản mới hàng tuần.', en: 'No. The project has daily commits and weekly new releases.' }, icon: 'activity', status: { text: 'Active', color: 'teal' }, tags: ['Daily commits'] }
+      ]
+    }
+  ]
+};
+
 const DATA = {
   SCAN_DONE, SCAN_LIVE, FILE_TREE, MODULES, SECURITY_FINDINGS,
   ARCH_NODES, ARCH_EDGES, FLOWS, README_MD, GENERATED_DOC,
-  CHAT_SEED_LIVE, CHAT_SEED_DONE, PIPELINE_STAGES, LIBRARY, COMPARE, QUICK_CHIPS,
+  CHAT_SEED_LIVE, CHAT_SEED_DONE, PIPELINE_STAGES, LIBRARY, COMPARE, QUICK_CHIPS, AI_ASSESSMENT
 };
 export default DATA;

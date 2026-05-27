@@ -6,7 +6,7 @@ import { useApp } from '@/src/context/AppContext';
 import Icon from '@/src/components/Icon';
 import {
   Button, Card, Badge, Skeleton, Spinner, SegControl, RiskChip, LangIcon, Severity,
-  CodeBlock, Markdown,
+  CodeBlock, Markdown, ContradictionAlert, BeginnerGuideCard, SuitabilityCard, RichQACard
 } from '@/src/components/ui';
 import API from '@/src/lib/api';
 import DATA from '@/src/lib/data';
@@ -86,8 +86,79 @@ export function OverviewTab({ session, ready, stage }) {
       <div className="font-mono text-ink-50 text-2xl tracking-tight">{value}</div>
     </Card>
   );
+  const [activeQACat, setActiveQACat] = useState(DATA.AI_ASSESSMENT?.categories[0]?.id || 'purpose');
+
   return (
     <div className="p-6 max-w-5xl mx-auto">
+      {/* AI Intelligence Report */}
+      {DATA.AI_ASSESSMENT && (
+        <Card className="mb-5 overflow-hidden border-teal-500/30">
+          <div className="bg-gradient-to-r from-teal-900/40 to-ink-900/40 p-5 border-b border-ink-800">
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <Icon name="sparkles" size={16} className="text-teal-400"/>
+                  <h3 className="text-ink-50 font-medium text-[15px]">AI Intelligence Report</h3>
+                </div>
+                <p className="text-ink-300 text-[13px]">
+                  {ctx.lang === 'vi' ? 'Đánh giá chuyên sâu dựa trên lý luận AI và phân tích mã nguồn tĩnh.' : 'Deep assessment based on AI reasoning and static code analysis.'}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="p-5 space-y-6">
+            {/* Contradictions */}
+            {DATA.AI_ASSESSMENT.contradictions.map((c, i) => (
+              <ContradictionAlert key={i} item={c} t={{ass:{contradiction: 'Contradiction Alert'}}} lang={ctx.lang} />
+            ))}
+
+            {/* Beginner Guide (ELI5) */}
+            <BeginnerGuideCard guide={DATA.AI_ASSESSMENT.beginnerGuide} lang={ctx.lang} repoName={session.repo.name} />
+
+            {/* Q&A List with Tab Categories */}
+            <div>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                <h4 className="text-sm font-medium text-ink-100 flex items-center gap-2">
+                  <Icon name="message-square" size={14}/>
+                  {ctx.lang === 'vi' ? 'Hỏi đáp chuyên sâu' : 'Deep Q&A'}
+                </h4>
+                
+                <div className="flex items-center gap-1 bg-ink-900/50 p-1 rounded-lg border border-ink-800 overflow-x-auto hide-scrollbar">
+                  {DATA.AI_ASSESSMENT.categories.map(cat => (
+                    <button
+                      key={cat.id}
+                      onClick={() => setActiveQACat(cat.id)}
+                      className={cx(
+                        "px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors whitespace-nowrap",
+                        activeQACat === cat.id ? "bg-ink-700 text-ink-50 shadow-sm" : "text-ink-300 hover:text-ink-100 hover:bg-ink-800/50"
+                      )}
+                    >
+                      {cat.name[ctx.lang]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              {DATA.AI_ASSESSMENT.categories.map(cat => (
+                <div key={cat.id} style={{ display: activeQACat === cat.id ? 'block' : 'none' }}>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {cat.qa.map((qa, i) => (
+                      <RichQACard key={i} item={qa} lang={ctx.lang} />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Suitability */}
+            <div className="flex flex-col md:flex-row gap-4">
+              <SuitabilityCard type="good" items={DATA.AI_ASSESSMENT.suitability.goodFor} t={{ass:{goodFor: 'Phù hợp cho', badFor: 'Không phù hợp'}}} lang={ctx.lang} />
+              <SuitabilityCard type="bad" items={DATA.AI_ASSESSMENT.suitability.badFor} t={{ass:{goodFor: 'Phù hợp cho', badFor: 'Không phù hợp'}}} lang={ctx.lang} />
+            </div>
+          </div>
+        </Card>
+      )}
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
         {stat(t.overview.stats.loc, (session.stats.loc || 0).toLocaleString(), 'code-2')}
         {stat(t.overview.stats.files, (session.stats.files || 0).toLocaleString(), 'file')}
