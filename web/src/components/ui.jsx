@@ -328,7 +328,7 @@ export function BeginnerGuideCard({ guide, lang, repoName }) {
           <Icon name="lightbulb" size={16} />
         </div>
         <h3 className="text-[15px] font-semibold text-indigo-300">
-          {isVi ? 'Góc giải thích cho người mới (ELI5)' : 'Beginner\\'s Corner (ELI5)'}
+          {isVi ? 'Góc giải thích cho người mới (ELI5)' : "Beginner's Corner (ELI5)"}
         </h3>
       </div>
       
