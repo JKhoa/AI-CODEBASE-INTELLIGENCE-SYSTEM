@@ -138,9 +138,7 @@ export async function POST(req) {
           readmeContent = await fetchGithubFileContent(repo_owner, repo_name, readmeBlob.path, branch, ghToken) || '';
         }
 
-        // Start AI Analysis immediately (takes a few seconds)
-        log('Phase 3 (Parallel): Starting AI analysis...');
-        const aiPromise = runGeminiAnalysis(geminiKey, blobs, readmeContent);
+        // Phase 3 will be executed after Phase 2 so it can read the code.
 
         // ===== PHASE 2: Fetch key files for imports (concurrent, limited) =====
         log('Phase 2: Fetching file contents...');
@@ -153,6 +151,7 @@ export async function POST(req) {
 
         let importsByFile = {};
         let filesData = [];
+        let codeSnippets = [];
 
         // Concurrent fetch with limit of 20 at a time (all at once)
         const CONCURRENCY = 20;
@@ -172,6 +171,11 @@ export async function POST(req) {
                   if (fileImports.length > 0) {
                     importsByFile[file.path] = fileImports;
                   }
+                  
+                  // Save a small snippet of the file for the AI to understand the logic
+                  const snippetLength = content.length > 500 ? 500 : content.length;
+                  codeSnippets.push(`// File: ${file.path}\n${content.substring(0, snippetLength)}...`);
+                  
                   return { path: file.path, type: 'file', loc, size };
                 }
               } catch (e) {
@@ -221,8 +225,12 @@ export async function POST(req) {
         });
         log('Progressive update 2: arch graph pushed');
 
-        // ===== WAIT FOR PHASE 3: AI Analysis =====
-        log('Waiting for AI analysis to complete...');
+        // ===== PHASE 3: Starting AI analysis with code context... =====
+        const combinedCodeSnippets = codeSnippets.join('\n\n');
+        const aiPromise = runGeminiAnalysis(geminiKey, blobs, readmeContent, combinedCodeSnippets);
+
+        // Wait for AI
+        log('Waiting for AI Analysis to complete...');
         const aiOutput = await aiPromise;
         log('Phase 3 done: AI analysis complete');
 

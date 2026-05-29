@@ -82,13 +82,7 @@ export async function POST(req) {
             repo: { owner: repo_owner, name: repo_name, url: repoData.html_url, branch, desc: { vi: repoData.description, en: repoData.description }, stars: repoData.stargazers_count, forks: repoData.forks_count }
           });
 
-          // Start AI Analysis parallel
-          const readmeBlob = blobs.find(b => b.path.toLowerCase() === 'readme.md');
-          let readmeContent = '';
-          if (readmeBlob) {
-            readmeContent = await fetchGithubFileContent(repo_owner, repo_name, readmeBlob.path, branch, ghToken) || '';
-          }
-          const aiPromise = runGeminiAnalysis(geminiKey, blobs, readmeContent);
+          // AI Analysis will run after fetching code contents.
 
           // ===== PHASE 2: Fetch key files =====
           const keyExtensions = ['.json', '.toml', '.mod', '.txt', '.js', '.jsx', '.ts', '.tsx', '.py', '.go', '.rs', '.java', '.rb', '.php'];
@@ -99,6 +93,7 @@ export async function POST(req) {
 
           let importsByFile = {};
           let filesData = [];
+          let codeSnippets = [];
           const CONCURRENCY = 20;
           for (let i = 0; i < candidateFiles.length; i += CONCURRENCY) {
             const batch = candidateFiles.slice(i, i + CONCURRENCY);
@@ -112,6 +107,10 @@ export async function POST(req) {
                   if (content !== null) {
                     const fileImports = extractImports(file.path, content);
                     if (fileImports.length > 0) importsByFile[file.path] = fileImports;
+                    
+                    const snippetLength = content.length > 500 ? 500 : content.length;
+                    codeSnippets.push(`// File: ${file.path}\n${content.substring(0, snippetLength)}...`);
+                    
                     return { path: file.path, type: 'file', loc: content.split('\n').length, size: Buffer.byteLength(content, 'utf8') };
                   }
                 } catch (e) { clearTimeout(timeout); }
@@ -136,6 +135,15 @@ export async function POST(req) {
             tree, arch, langs,
             stats: { loc: totalLoc, files: blobs.length, modules: 0, contributors: 1, lastCommit: repoData.updated_at }
           });
+
+          // Start AI Analysis
+          const readmeBlob = blobs.find(b => b.path.toLowerCase() === 'readme.md');
+          let readmeContent = '';
+          if (readmeBlob) {
+            readmeContent = await fetchGithubFileContent(repo_owner, repo_name, readmeBlob.path, branch, ghToken) || '';
+          }
+          const combinedCodeSnippets = codeSnippets.join('\n\n');
+          const aiPromise = runGeminiAnalysis(geminiKey, blobs, readmeContent, combinedCodeSnippets);
 
           // Wait for AI
           const aiOutput = await aiPromise;
