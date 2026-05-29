@@ -83,7 +83,12 @@ export async function POST(req) {
           });
 
           // Start AI Analysis parallel
-          const aiPromise = runGeminiAnalysis(geminiKey, blobs);
+          const readmeBlob = blobs.find(b => b.path.toLowerCase() === 'readme.md');
+          let readmeContent = '';
+          if (readmeBlob) {
+            readmeContent = await fetchGithubFileContent(repo_owner, repo_name, readmeBlob.path, branch, ghToken) || '';
+          }
+          const aiPromise = runGeminiAnalysis(geminiKey, blobs, readmeContent);
 
           // ===== PHASE 2: Fetch key files =====
           const keyExtensions = ['.json', '.toml', '.mod', '.txt', '.js', '.jsx', '.ts', '.tsx', '.py', '.go', '.rs', '.java', '.rb', '.php'];

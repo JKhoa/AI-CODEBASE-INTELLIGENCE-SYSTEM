@@ -131,9 +131,16 @@ export async function POST(req) {
         log('Progressive update 1: tree + langs pushed');
 
         // ===== PHASE 2 & 3 PARALLEL EXECUTION =====
+        log('Fetching README for AI context...');
+        const readmeBlob = blobs.find(b => b.path.toLowerCase() === 'readme.md');
+        let readmeContent = '';
+        if (readmeBlob) {
+          readmeContent = await fetchGithubFileContent(repo_owner, repo_name, readmeBlob.path, branch, ghToken) || '';
+        }
+
         // Start AI Analysis immediately (takes a few seconds)
         log('Phase 3 (Parallel): Starting AI analysis...');
-        const aiPromise = runGeminiAnalysis(geminiKey, blobs);
+        const aiPromise = runGeminiAnalysis(geminiKey, blobs, readmeContent);
 
         // ===== PHASE 2: Fetch key files for imports (concurrent, limited) =====
         log('Phase 2: Fetching file contents...');

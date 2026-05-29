@@ -296,18 +296,19 @@ async function callLLM(prompt, geminiKey, timeoutMs = 30000) {
   return null;
 }
 
-export async function runGeminiAnalysis(geminiKey, blobs) {
+export async function runGeminiAnalysis(geminiKey, blobs, readmeContent = "") {
   // Limit file list for faster processing
   const fileList = blobs.map(b => b.path).slice(0, 60).join('\n');
+  const readmeSnippet = readmeContent ? `\n\nĐây là nội dung file README của dự án (mô tả chính xác dự án làm gì):\n---\n${readmeContent.slice(0, 2500)}\n---\n` : "";
   
   // Agent 1: Architecture & Domains
-  const prompt1 = `Bạn là chuyên gia phân tích kiến trúc phần mềm. Phân tích danh sách tệp tin sau:\n${fileList}\n\nTrả về JSON CHÍNH XÁC theo cấu trúc sau (KHÔNG text ngoài JSON):\n{\n  "modules": [{"name":"string","purpose":{"vi":"string","en":"string"},"lang":"string","files":0,"fns":0,"risk":"Low|Medium|High","layer":"frontend|backend|infra|data|tooling|docs"}],\n  "domains": [{"name":{"vi":"string","en":"string"},"actors":["string"],"steps":[{"from":"string","to":"string","label":"string"}]}]\n}`;
+  const prompt1 = `Bạn là chuyên gia phân tích kiến trúc phần mềm. Phân tích dự án có danh sách tệp tin sau:${readmeSnippet}\nDanh sách tệp:\n${fileList}\n\nTrả về JSON CHÍNH XÁC theo cấu trúc sau (KHÔNG text ngoài JSON):\n{\n  "modules": [{"name":"string","purpose":{"vi":"string","en":"string"},"lang":"string","files":0,"fns":0,"risk":"Low|Medium|High","layer":"frontend|backend|infra|data|tooling|docs"}],\n  "domains": [{"name":{"vi":"string","en":"string"},"actors":["string"],"steps":[{"from":"string","to":"string","label":"string"}]}]\n}`;
   
   // Agent 2: Security & Tours
-  const prompt2 = `Bạn là chuyên gia bảo mật và tài liệu phần mềm. Phân tích danh sách tệp tin sau:\n${fileList}\n\nTrả về JSON CHÍNH XÁC theo cấu trúc sau (KHÔNG text ngoài JSON):\n{\n  "security": [{"id":"SEC-001","severity":"high|medium|low","confirmed":true,"falsePositive":false,"title":{"vi":"string","en":"string"},"file":"string","line":"string","rule":"string","why":{"vi":"string","en":"string"},"code":"string","suggested":"string","refs":["CWE-XX"]}],\n  "tours": [{"order":1,"title":"string","description":{"vi":"string","en":"string"},"nodeIds":["file:path"]}]\n}`;
+  const prompt2 = `Bạn là chuyên gia bảo mật và tài liệu phần mềm. Phân tích dự án có danh sách tệp tin sau:${readmeSnippet}\nDanh sách tệp:\n${fileList}\n\nTrả về JSON CHÍNH XÁC theo cấu trúc sau (KHÔNG text ngoài JSON):\n{\n  "security": [{"id":"SEC-001","severity":"high|medium|low","confirmed":true,"falsePositive":false,"title":{"vi":"string","en":"string"},"file":"string","line":"string","rule":"string","why":{"vi":"string","en":"string"},"code":"string","suggested":"string","refs":["CWE-XX"]}],\n  "tours": [{"order":1,"title":"string","description":{"vi":"string","en":"string"},"nodeIds":["file:path"]}]\n}`;
 
   // Agent 3: AI Assessment (Practical examples, Contradictions, QA)
-  const prompt3 = `Bạn là chuyên gia giáo dục và đánh giá công nghệ. Dựa vào tệp tin sau để suy luận nghiệp vụ chính của repo:\n${fileList}\n\nTrả về JSON CHÍNH XÁC theo cấu trúc sau:\n{\n  "beginnerGuide": {"practicalExample":{"vi":"Ví dụ thực tế liên quan trực tiếp đến nghiệp vụ của repo (ví dụ: nếu làm về AI/CV thì đưa ví dụ xử lý ảnh/model)","en":"string"},"simplePurpose":{"vi":"string","en":"string"},"coreValue":[{"vi":"string","en":"string"}]},\n  "contradictions": [{"type":"high|medium|low","vi":"string","en":"string"}],\n  "suitability": {"goodFor":[{"vi":"string","en":"string"}],"badFor":[{"vi":"string","en":"string"}]},\n  "categories": [{"id":"string","name":{"vi":"string","en":"string"},"qa":[{"q":"string","a":{"vi":"string","en":"string"},"icon":"target","tags":["string"]}]}]\n}`;
+  const prompt3 = `Bạn là chuyên gia giáo dục và đánh giá công nghệ. Dựa vào mô tả và tệp tin sau để HIỂU CHÍNH XÁC nghiệp vụ của repo:${readmeSnippet}\nDanh sách tệp:\n${fileList}\n\nTrả về JSON CHÍNH XÁC theo cấu trúc sau:\n{\n  "beginnerGuide": {"practicalExample":{"vi":"Ví dụ thực tế BÁM SÁT nghiệp vụ mô tả trong README (ví dụ: nếu README nói về nhận diện ngủ gật, hãy lấy ví dụ về camera AI báo động tài xế)","en":"string"},"simplePurpose":{"vi":"string","en":"string"},"coreValue":[{"vi":"string","en":"string"}]},\n  "contradictions": [{"type":"high|medium|low","vi":"string","en":"string"}],\n  "suitability": {"goodFor":[{"vi":"string","en":"string"}],"badFor":[{"vi":"string","en":"string"}]},\n  "categories": [{"id":"string","name":{"vi":"string","en":"string"},"qa":[{"q":"string","a":{"vi":"string","en":"string"},"icon":"target","tags":["string"]}]}]\n}`;
 
   // Multi-Agent Parallel Execution
   const [res1, res2, res3] = await Promise.all([
