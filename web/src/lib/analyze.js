@@ -248,46 +248,57 @@ export async function fetchGithubTree(owner, repo, tokenStr) {
 
 async function callLLM(prompt, geminiKey, timeoutMs = 120000) {
   if (geminiKey) {
-    try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`;
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), timeoutMs);
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: controller.signal,
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { responseMimeType: 'application/json', temperature: 0.3, maxOutputTokens: 4096 }
-        })
-      });
-      clearTimeout(timeout);
-      if (response.ok) {
-        const json = await response.json();
-        let text = json.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const models = ['gemini-1.5-flash-latest', 'gemini-1.5-pro-latest', 'gemini-2.0-flash-exp', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
+    let lastError = "";
+    
+    for (const model of models) {
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), timeoutMs);
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { responseMimeType: 'application/json', temperature: 0.3, maxOutputTokens: 4096 }
+          })
+        });
+        clearTimeout(timeout);
         
-        // Robust JSON extraction
-        try {
-          let cleaned = text.replace(/```json/gi, '').replace(/```/g, '').trim();
-          const firstBrace = cleaned.indexOf('{');
-          const lastBrace = cleaned.lastIndexOf('}');
-          if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-            cleaned = cleaned.substring(firstBrace, lastBrace + 1);
+        if (response.ok) {
+          const json = await response.json();
+          let text = json.candidates?.[0]?.content?.parts?.[0]?.text || "";
+          
+          try {
+            let cleaned = text.replace(/```json/gi, '').replace(/```/g, '').trim();
+            const firstBrace = cleaned.indexOf('{');
+            const lastBrace = cleaned.lastIndexOf('}');
+            if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+              cleaned = cleaned.substring(firstBrace, lastBrace + 1);
+            }
+            return JSON.parse(cleaned);
+          } catch (e) {
+            console.error("Gemini JSON parse error:", e, "Text:", text.substring(0, 200));
+            return { _error: "Failed to parse JSON", _raw: text.substring(0, 500) };
           }
-          return JSON.parse(cleaned);
-        } catch (e) {
-          console.error("Gemini JSON parse error:", e, "Text:", text.substring(0, 200));
-          return { _error: "Failed to parse JSON", _raw: text.substring(0, 500) };
+        } else {
+          const errText = await response.text();
+          console.error(`Gemini API non-OK (${model}):`, response.status, errText);
+          lastError = `API Error ${response.status}: ${errText}`;
+          if (response.status !== 404 && response.status !== 429) {
+             // If it's not a model missing or rate limit, break and return
+             break;
+          }
+          // If 404 or 429, try next model
         }
-      } else {
-        const errText = await response.text();
-        console.error("Gemini API non-OK:", response.status, errText);
-        return { _error: `API Error ${response.status}: ${errText}` };
+      } catch (err) {
+        console.error(`Gemini Error (${model}):`, err.name === 'AbortError' ? 'Timeout' : err.message);
+        lastError = `Request Error: ${err.message}`;
       }
-    } catch (err) {
-      console.error("Gemini Error, fallback to Ollama:", err.name === 'AbortError' ? 'Timeout' : err.message);
-      return { _error: `Request Error: ${err.message}` };
     }
+    return { _error: `All models failed. Last error: ${lastError}` };
   }
 
   const ollamaModel = process.env.OLLAMA_MODEL || "qwen2.5-coder";
