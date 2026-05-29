@@ -265,13 +265,28 @@ async function callLLM(prompt, geminiKey, timeoutMs = 120000) {
       if (response.ok) {
         const json = await response.json();
         let text = json.candidates?.[0]?.content?.parts?.[0]?.text || "";
-        text = text.replace(/```json/g, '').replace(/```/g, '').trim();
-        return JSON.parse(text);
+        
+        // Robust JSON extraction
+        try {
+          let cleaned = text.replace(/```json/gi, '').replace(/```/g, '').trim();
+          const firstBrace = cleaned.indexOf('{');
+          const lastBrace = cleaned.lastIndexOf('}');
+          if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+            cleaned = cleaned.substring(firstBrace, lastBrace + 1);
+          }
+          return JSON.parse(cleaned);
+        } catch (e) {
+          console.error("Gemini JSON parse error:", e, "Text:", text.substring(0, 200));
+          return { _error: "Failed to parse JSON", _raw: text.substring(0, 500) };
+        }
       } else {
-        console.error("Gemini API non-OK:", response.status, await response.text());
+        const errText = await response.text();
+        console.error("Gemini API non-OK:", response.status, errText);
+        return { _error: `API Error ${response.status}: ${errText}` };
       }
     } catch (err) {
       console.error("Gemini Error, fallback to Ollama:", err.name === 'AbortError' ? 'Timeout' : err.message);
+      return { _error: `Request Error: ${err.message}` };
     }
   }
 
@@ -288,10 +303,17 @@ async function callLLM(prompt, geminiKey, timeoutMs = 120000) {
     if (res.ok) {
       const data = await res.json();
       let text = (data.response || "").replace(/```json/g, '').replace(/```/g, '').trim();
-      return JSON.parse(text);
+      try {
+        return JSON.parse(text);
+      } catch (e) {
+        return { _error: "Ollama JSON parse error", _raw: text.substring(0, 500) };
+      }
+    } else {
+      return { _error: `Ollama API Error ${res.status}` };
     }
   } catch (err) {
     console.error("Ollama Error:", err.name === 'AbortError' ? 'Timeout' : err.message);
+    return { _error: `Ollama Error: ${err.message}` };
   }
   return null;
 }
@@ -319,10 +341,17 @@ export async function runGeminiAnalysis(geminiKey, blobs, readmeContent = "", co
   ]);
 
   return {
-    modules: res1?.modules || [],
-    domains: res1?.domains || [],
-    security: res2?.security || [],
-    tours: res2?.tours || [],
-    aiAssessment: res3 || null
+    modules: res1?._error ? [] : (res1?.modules || []),
+    domains: res1?._error ? [] : (res1?.domains || []),
+    security: res2?._error ? [] : (res2?.security || []),
+    tours: res2?._error ? [] : (res2?.tours || []),
+    aiAssessment: res3?._error ? {
+      beginnerGuide: {
+        practicalExample: { vi: `Lỗi AI: ${res3._error}. Chi tiết: ${res3._raw || ''}`, en: "AI Error" },
+        simplePurpose: { vi: "Không thể phân tích do lỗi API hoặc cấu trúc dữ liệu", en: "Error" },
+        coreValue: []
+      },
+      categories: []
+    } : res3 || null
   };
 }
