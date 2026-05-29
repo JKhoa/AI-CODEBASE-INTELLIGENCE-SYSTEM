@@ -246,7 +246,7 @@ export async function fetchGithubTree(owner, repo, tokenStr) {
   return { repoData, blobs };
 }
 
-async function callLLM(prompt, geminiKey, timeoutMs = 30000) {
+async function callLLM(prompt, geminiKey, timeoutMs = 120000) {
   if (geminiKey) {
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`;
@@ -298,9 +298,9 @@ async function callLLM(prompt, geminiKey, timeoutMs = 30000) {
 
 export async function runGeminiAnalysis(geminiKey, blobs, readmeContent = "", codeSnippet = "") {
   // Limit file list for faster processing
-  const fileList = blobs.map(b => b.path).slice(0, 60).join('\n');
-  const readmeSnippet = readmeContent ? `\n\nĐây là nội dung file README của dự án:\n---\n${readmeContent.slice(0, 2000)}\n---\n` : "";
-  const codeContext = codeSnippet ? `\n\nMột số đoạn code thực tế từ dự án để hiểu rõ logic:\n---\n${codeSnippet.slice(0, 3000)}\n---\n` : "";
+  const fileList = blobs.map(b => b.path).slice(0, 100).join('\n');
+  const readmeSnippet = readmeContent ? `\n\nĐây là nội dung file README của dự án:\n---\n${readmeContent.slice(0, 3000)}\n---\n` : "";
+  const codeContext = codeSnippet ? `\n\nMột số đoạn code thực tế từ dự án để hiểu rõ logic:\n---\n${codeSnippet.slice(0, 80000)}\n---\n` : "";
   
   // Agent 1: Architecture & Domains
   const prompt1 = `Bạn là chuyên gia phân tích kiến trúc phần mềm. Phân tích dự án dựa trên tài liệu và mã nguồn sau:${readmeSnippet}${codeContext}\nDanh sách tệp:\n${fileList}\n\nTrả về JSON CHÍNH XÁC theo cấu trúc sau (KHÔNG text ngoài JSON):\n{\n  "modules": [{"name":"string","purpose":{"vi":"string","en":"string"},"lang":"string","files":0,"fns":0,"risk":"Low|Medium|High","layer":"frontend|backend|infra|data|tooling|docs"}],\n  "domains": [{"name":{"vi":"string","en":"string"},"actors":["string"],"steps":[{"from":"string","to":"string","label":"string"}]}]\n}`;

@@ -85,11 +85,17 @@ export async function POST(req) {
           // AI Analysis will run after fetching code contents.
 
           // ===== PHASE 2: Fetch key files =====
-          const keyExtensions = ['.json', '.toml', '.mod', '.txt', '.js', '.jsx', '.ts', '.tsx', '.py', '.go', '.rs', '.java', '.rb', '.php'];
+          const keyExtensions = ['.py', '.go', '.rs', '.java', '.rb', '.php', '.js', '.jsx', '.ts', '.tsx', '.json', '.toml', '.mod'];
           const candidateFiles = blobs
             .filter(b => keyExtensions.some(ext => b.path.endsWith(ext)))
-            .filter(b => !b.path.includes('node_modules/') && !b.path.includes('vendor/') && !b.path.includes('.min.'))
-            .sort((a, b) => (a.size || 0) - (b.size || 0)).slice(0, 20);
+            .filter(b => !b.path.includes('node_modules/') && !b.path.includes('vendor/') && !b.path.includes('.min.') && !b.path.includes('test') && !b.path.includes('mock'))
+            .sort((a, b) => {
+              const isCodeA = !a.path.endsWith('.json') && !a.path.endsWith('.toml');
+              const isCodeB = !b.path.endsWith('.json') && !b.path.endsWith('.toml');
+              if (isCodeA !== isCodeB) return isCodeA ? -1 : 1;
+              return (b.size || 0) - (a.size || 0); // Largest first for more logic
+            })
+            .slice(0, 60); // Read up to 60 files for deep analysis
 
           let importsByFile = {};
           let filesData = [];
@@ -108,7 +114,7 @@ export async function POST(req) {
                     const fileImports = extractImports(file.path, content);
                     if (fileImports.length > 0) importsByFile[file.path] = fileImports;
                     
-                    const snippetLength = content.length > 500 ? 500 : content.length;
+                    const snippetLength = content.length > 4000 ? 4000 : content.length;
                     codeSnippets.push(`// File: ${file.path}\n${content.substring(0, snippetLength)}...`);
                     
                     return { path: file.path, type: 'file', loc: content.split('\n').length, size: Buffer.byteLength(content, 'utf8') };
