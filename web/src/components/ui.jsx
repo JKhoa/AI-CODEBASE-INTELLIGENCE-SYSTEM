@@ -332,23 +332,23 @@ export function BeginnerGuideCard({ guide, lang, repoName }) {
           <Icon name="lightbulb" size={16} />
         </div>
         <h3 className="text-[15px] font-semibold text-indigo-300">
-          {isVi ? 'Góc giải thích cho người mới (ELI5)' : "Beginner's Corner (ELI5)"}
+          {isVi ? 'Tổng quan Nghiệp vụ' : "Business Overview"}
         </h3>
       </div>
       
       <div className="space-y-4">
         <div>
           <div className="text-[11px] font-bold uppercase tracking-wider text-indigo-400/70 mb-1">
-            {isVi ? 'Ví dụ thực tế' : 'Practical Example'}
+            {isVi ? 'Cách hoạt động & Ứng dụng' : 'How it works & Applications'}
           </div>
-          <div className="text-[13.5px] text-ink-50 leading-relaxed bg-ink-900/50 p-3 rounded-lg border border-indigo-500/10 italic">
-            "{example}"
+          <div className="text-[13.5px] text-ink-50 leading-relaxed bg-ink-900/50 p-3 rounded-lg border border-indigo-500/10">
+            {example}
           </div>
         </div>
 
         <div>
           <div className="text-[11px] font-bold uppercase tracking-wider text-indigo-400/70 mb-1">
-            {isVi ? 'Thực chất làm gì?' : 'What does it do?'}
+            {isVi ? 'Mục tiêu cốt lõi' : 'Core Objective'}
           </div>
           <div className="text-[13px] text-ink-200 leading-relaxed">
             {purpose}
@@ -356,8 +356,8 @@ export function BeginnerGuideCard({ guide, lang, repoName }) {
         </div>
 
         <div>
-          <div className="text-[11px] font-bold uppercase tracking-wider text-indigo-400/70 mb-1">
-            {isVi ? 'Tại sao nên dùng?' : 'Why use it?'}
+          <div className="text-[11px] font-bold uppercase tracking-wider text-indigo-400/70 mb-3">
+            {isVi ? 'Giá trị mang lại' : 'Value Proposition'}
           </div>
           <ul className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-1">
             {guide.coreValue.map((cv, i) => (
