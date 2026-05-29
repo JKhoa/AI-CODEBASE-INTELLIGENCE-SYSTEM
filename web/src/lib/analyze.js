@@ -249,7 +249,7 @@ export async function fetchGithubTree(owner, repo, tokenStr) {
 async function callLLM(prompt, geminiKey, timeoutMs = 120000) {
   if (geminiKey) {
     try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`;
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), timeoutMs);
       const response = await fetch(url, {
@@ -322,7 +322,7 @@ export async function runGeminiAnalysis(geminiKey, blobs, readmeContent = "", co
   // Limit file list for faster processing
   const fileList = blobs.map(b => b.path).slice(0, 100).join('\n');
   const readmeSnippet = readmeContent ? `\n\nĐây là nội dung file README của dự án:\n---\n${readmeContent.slice(0, 3000)}\n---\n` : "";
-  const codeContext = codeSnippet ? `\n\nMột số đoạn code thực tế từ dự án để hiểu rõ logic:\n---\n${codeSnippet.slice(0, 80000)}\n---\n` : "";
+  const codeContext = codeSnippet ? `\n\nMột số đoạn code thực tế từ dự án để hiểu rõ logic:\n---\n${codeSnippet.slice(0, 30000)}\n---\n` : "";
   
   // Agent 1: Architecture & Domains
   const prompt1 = `Bạn là chuyên gia phân tích kiến trúc phần mềm. Phân tích dự án dựa trên tài liệu và mã nguồn sau:${readmeSnippet}${codeContext}\nDanh sách tệp:\n${fileList}\n\nTrả về JSON CHÍNH XÁC theo cấu trúc sau (KHÔNG text ngoài JSON):\n{\n  "modules": [{"name":"string","purpose":{"vi":"string","en":"string"},"lang":"string","files":0,"fns":0,"risk":"Low|Medium|High","layer":"frontend|backend|infra|data|tooling|docs"}],\n  "domains": [{"name":{"vi":"string","en":"string"},"actors":["string"],"steps":[{"from":"string","to":"string","label":"string"}]}]\n}`;
@@ -333,12 +333,12 @@ export async function runGeminiAnalysis(geminiKey, blobs, readmeContent = "", co
   // Agent 3: AI Assessment (Practical examples, Contradictions, QA)
   const prompt3 = `Bạn là Chuyên gia Kiến trúc Phần mềm cấp cao. ĐỌC KỸ MÃ NGUỒN VÀ TÀI LIỆU SAU ĐỂ HIỂU CHÍNH XÁC NGHIỆP VỤ THỰC TẾ CỦA REPO:${readmeSnippet}${codeContext}\nDanh sách tệp:\n${fileList}\n\nTrả về JSON CHÍNH XÁC theo cấu trúc sau:\n{\n  "beginnerGuide": {"practicalExample":{"vi":"Giải thích chuyên nghiệp, rõ ràng về cách ứng dụng này hoạt động, các chức năng cốt lõi là gì, và cách người dùng sử dụng nó trong thực tế. KHÔNG dùng ví von, KHÔNG so sánh ẩn dụ. Viết như tài liệu chuyên ngành nhưng dễ hiểu","en":"string"},"simplePurpose":{"vi":"Giải thích ngắn gọn, đi thẳng vào vấn đề trọng tâm repo này giải quyết bài toán gì","en":"string"},"coreValue":[{"vi":"string","en":"string"}]},\n  "contradictions": [{"type":"high|medium|low","vi":"string","en":"string"}],\n  "suitability": {"goodFor":[{"vi":"string","en":"string"}],"badFor":[{"vi":"string","en":"string"}]},\n  "categories": [{"id":"string","name":{"vi":"string","en":"string"},"qa":[{"q":"Câu hỏi phân tích chuyên sâu (vd: Luồng xử lý dữ liệu hoạt động ra sao?)","a":{"vi":"Câu trả lời chuyên nghiệp, tường tận, mổ xẻ kỹ thuật","en":"string"},"icon":"target","tags":["string"]}]}]\n}`;
 
-  // Multi-Agent Parallel Execution
-  const [res1, res2, res3] = await Promise.all([
-    callLLM(prompt1, geminiKey),
-    callLLM(prompt2, geminiKey),
-    callLLM(prompt3, geminiKey)
-  ]);
+  // Sequential Execution to avoid Rate Limits (429 Too Many Requests)
+  const res1 = await callLLM(prompt1, geminiKey);
+  await new Promise(r => setTimeout(r, 1000)); // 1s delay
+  const res2 = await callLLM(prompt2, geminiKey);
+  await new Promise(r => setTimeout(r, 1000)); // 1s delay
+  const res3 = await callLLM(prompt3, geminiKey);
 
   return {
     modules: res1?._error ? [] : (res1?.modules || []),
